@@ -449,12 +449,11 @@ function App() {
   // 外接磁碟也能讀）；只把路徑存進 localStorage，data URL 僅存在記憶體、每次啟動重載。
   const [bgUrl, setBgUrl] = useState("");
   useEffect(() => {
-    if (!backgroundImage) {
-      setBgUrl("");
-      return;
-    }
     let cancelled = false;
-    readImageDataUrl(backgroundImage)
+    const load = backgroundImage
+      ? readImageDataUrl(backgroundImage)
+      : Promise.resolve("");
+    load
       .then((url) => {
         if (!cancelled) setBgUrl(url);
       })
