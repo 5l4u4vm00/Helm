@@ -162,11 +162,19 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
   },
 }));
 
-/** 依 active 名稱解析 xterm 主題：自訂 id → 其 terminal 色組，否則內建 preset。 */
-export function resolveXtermTheme(name: string, customThemes: CustomTheme[]): ITheme {
+/**
+ * 依 active 名稱解析 xterm 主題：自訂 id → 其 terminal 色組，否則內建 preset。
+ * transparentBg=true 時把背景設為全透明（配合 allowTransparency），讓 .app 的
+ * 自訂背景圖（經 dim 遮罩調暗）透出終端；文字/ANSI 前景與 cell 背景照常繪製。
+ */
+export function resolveXtermTheme(
+  name: string,
+  customThemes: CustomTheme[],
+  transparentBg = false,
+): ITheme {
   const custom = customThemes.find((c) => c.id === name);
-  if (custom) return custom.terminal;
-  return xtermThemes[name as ThemeName] ?? xtermThemes.dark;
+  const base = custom ? custom.terminal : xtermThemes[name as ThemeName] ?? xtermThemes.dark;
+  return transparentBg ? { ...base, background: "rgba(0,0,0,0)" } : base;
 }
 
 /** 自訂主題的 UI 變數 → inline style（App.css 不需要 [data-theme="custom"] 區塊）。 */

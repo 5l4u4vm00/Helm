@@ -1,4 +1,4 @@
-import { lazy, memo, Suspense, useEffect, useMemo, type CSSProperties } from "react";
+import { lazy, memo, Suspense, useEffect, useMemo, useState, type CSSProperties } from "react";
 import { Terminal } from "./components/Terminal/Terminal";
 import { SessionSidebar } from "./components/SessionSidebar/SessionSidebar";
 import { ApprovalPanel } from "./components/ApprovalPanel/ApprovalPanel";
@@ -40,7 +40,7 @@ import { usePrefixStore } from "./store/prefix";
 import { WhichKey } from "./components/WhichKey/WhichKey";
 import { runCommand } from "./commands/registry";
 import { listen } from "@tauri-apps/api/event";
-import { convertFileSrc } from "@tauri-apps/api/core";
+import { readImageDataUrl } from "./ipc/background";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { activateSession } from "./commands/actions";
 import { setMenuLanguage } from "./ipc/menu";
@@ -445,8 +445,29 @@ function App() {
     })();
   }, []);
 
-  // 自訂背景圖：路徑經 asset protocol 轉為可載入 URL；遮罩 0-100 → 0-1 alpha。
-  const bgUrl = backgroundImage ? convertFileSrc(backgroundImage) : "";
+  // 自訂背景圖：由 Rust 讀檔轉成 data: URL（不走 asset protocol，避開其 scope 限制、
+  // 外接磁碟也能讀）；只把路徑存進 localStorage，data URL 僅存在記憶體、每次啟動重載。
+  const [bgUrl, setBgUrl] = useState("");
+  useEffect(() => {
+    if (!backgroundImage) {
+      setBgUrl("");
+      return;
+    }
+    let cancelled = false;
+    readImageDataUrl(backgroundImage)
+      .then((url) => {
+        if (!cancelled) setBgUrl(url);
+      })
+      .catch((e) => {
+        console.error("load background image failed", e);
+        if (!cancelled) setBgUrl("");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [backgroundImage]);
+
+  // 遮罩 0-100 → 0-1 alpha。
   const appStyle: CSSProperties = {
     ...(customTheme ? customCssVars(customTheme) : {}),
     ...(bgUrl

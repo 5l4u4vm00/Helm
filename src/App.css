@@ -55,9 +55,18 @@ body {
   z-index: 0;
   pointer-events: none;
 }
-/* 有背景圖時讓終端區塊透出圖（app-body 平時填不透明 --term-bg 會蓋住圖）。 */
-.app[data-bg-image="true"] .app-body {
+/* 有背景圖時讓終端區塊透出圖（app-body 與 pane 平時填不透明 --term-bg 會蓋住圖；
+   xterm 畫布本身的透明由 allowTransparency + 透明 theme.background 處理）。 */
+.app[data-bg-image="true"] .app-body,
+.app[data-bg-image="true"] .terminal-pane {
   background: transparent;
+}
+/* 有背景圖時 chrome（側欄／工具列／pane 標題列）改半透明，讓背景圖也透出來，
+   同時保留足夠底色維持文字可讀性。 */
+.app[data-bg-image="true"] .sidebar,
+.app[data-bg-image="true"] .toolbar,
+.app[data-bg-image="true"] .pane-label {
+  background: color-mix(in srgb, var(--sidebar-bg) 68%, transparent);
 }
 /* chrome 疊在背景層之上。 */
 .app > .sidebar,

@@ -1,3 +1,4 @@
+mod background;
 mod config;
 mod fonts;
 mod hookserver;
@@ -169,6 +170,7 @@ pub fn run() {
             pty::pty_resize,
             pty::pty_kill,
             config::read_agents_config,
+            background::read_image_data_url,
             integrations::integration_status,
             integrations::install_claude_hooks,
             integrations::install_claude_statusline,
