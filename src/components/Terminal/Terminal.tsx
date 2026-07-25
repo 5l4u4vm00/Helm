@@ -26,6 +26,10 @@ import "./Terminal.css";
 const SCAN_DEBOUNCE_VISIBLE_MS = 150;
 const SCAN_DEBOUNCE_HIDDEN_MS = 1000;
 
+// Trailing refit delay after a pane-size change settles (see the ResizeObserver
+// below). Long enough to outlast the macOS window zoom / full-screen animation.
+const FIT_SETTLE_MS = 250;
+
 interface TerminalProps {
   id: string;
   /** 是否為目前 focus 的 pane（邊框高亮 + 自動聚焦輸入）。 */
@@ -304,6 +308,12 @@ function TerminalImpl({
     // 拖曳分隔線時 resize 事件連發：fit 用 rAF 合併（畫面即時跟手），
     // PTY 的 cols/rows 由 onResize 的尾端 debounce 通知（見上方同步點）。
     let fitRaf = 0;
+    // 尾端再補一次 fit：macOS 放大/全螢幕（視窗尺寸動畫）期間 renderer 量到的
+    // cell 高度可能還是過渡值，那一幀的 fit 會少算列數；動畫結束後 pane 尺寸不
+    // 再變，ResizeObserver 不會再觸發，錯誤列數就永久留下（grid 比 pane 矮，被
+    // .terminal-pane 的垂直置中攤成上下留白）。fit() 在尺寸相同時是 no-op，
+    // 所以這一發只在真的需要補正時才動到 xterm/PTY。
+    let fitSettleTimer: ReturnType<typeof setTimeout> | undefined;
     const resizeObserver = new ResizeObserver(() => {
       if (container.clientWidth === 0 || container.clientHeight === 0) return;
       if (!fitRaf) {
@@ -316,6 +326,14 @@ function TerminalImpl({
           }
         });
       }
+      if (fitSettleTimer) clearTimeout(fitSettleTimer);
+      fitSettleTimer = setTimeout(() => {
+        try {
+          fitAddon.fit();
+        } catch {
+          /* ignore */
+        }
+      }, FIT_SETTLE_MS);
     });
     resizeObserver.observe(container);
 
@@ -324,6 +342,7 @@ function TerminalImpl({
       if (idleTimer) clearTimeout(idleTimer);
       if (scanTimer) clearTimeout(scanTimer);
       if (fitRaf) cancelAnimationFrame(fitRaf);
+      if (fitSettleTimer) clearTimeout(fitSettleTimer);
       if (ptyResizeTimer) clearTimeout(ptyResizeTimer);
       resizeObserver.disconnect();
       resizeDisposable.dispose();
