@@ -2,12 +2,24 @@
 // 由 profile.extract 的 regex 驅動，不綁定特定工具。
 import type { AgentProfile } from "./types";
 
+/** One file an agent touched. `source` records how we learned about it:
+ *  "hook" paths are trustworthy (absolute, straight from tool_input), while
+ *  "scan" paths came from a viewport regex and may be a bare basename or
+ *  truncated by the terminal width — the diff view needs to tell them apart. */
+export interface ChangedFile {
+  op: string;
+  path: string;
+  source?: "hook" | "scan";
+  /** The agent CLI's cwd when the tool ran (hook payload); anchors git. */
+  cwd?: string;
+}
+
 export interface Extracted {
   cost?: number;
   tokensIn?: number;
   tokensOut?: number;
   contextLeftPercent?: number;
-  file?: { op: string; path: string };
+  file?: ChangedFile;
 }
 
 const cache = new Map<string, RegExp>();
@@ -104,7 +116,7 @@ export function extractFromLine(profile: AgentProfile, line: string): Extracted 
       // group1=op group2=path；若只有一個 group 就當作 path。
       const op = m[2] ? m[1] : "change";
       const path = (m[2] ?? m[1] ?? "").trim();
-      if (path) out.file = { op: op.trim(), path };
+      if (path) out.file = { op: op.trim(), path, source: "scan" };
     }
   }
   return out;
@@ -144,7 +156,7 @@ export function extractUsageFromText(profile: AgentProfile, text: string): Extra
 export function extractFilesFromText(
   profile: AgentProfile,
   text: string,
-): { op: string; path: string }[] {
+): ChangedFile[] {
   const src = profile.extract?.fileChange;
   if (!src) return [];
   const re = rx(src);
@@ -159,5 +171,5 @@ export function extractFilesFromText(
     const path = (m[2] ?? m[1] ?? "").trim();
     if (path) byPath.set(path, op.trim());
   }
-  return [...byPath].map(([path, op]) => ({ op, path }));
+  return [...byPath].map(([path, op]) => ({ op, path, source: "scan" as const }));
 }

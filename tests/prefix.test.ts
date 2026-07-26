@@ -67,6 +67,10 @@ function runId(armed: boolean, e: KeyEventLike): string | null {
   check("prefix c → session:new", runId(true, ev({ key: "c", code: "KeyC" })) === "session:new");
   check("prefix n → session:next", runId(true, ev({ key: "n", code: "KeyN" })) === "session:next");
   check("prefix p → session:prev", runId(true, ev({ key: "p", code: "KeyP" })) === "session:prev");
+  check(
+    "prefix r → session:rename-active",
+    runId(true, ev({ key: "r", code: "KeyR" })) === "session:rename-active",
+  );
   check("prefix w → workspace:new", runId(true, ev({ key: "w", code: "KeyW" })) === "workspace:new");
   check("prefix g → focus:sidebar", runId(true, ev({ key: "g", code: "KeyG" })) === "focus:sidebar");
   check(

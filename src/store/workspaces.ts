@@ -1,8 +1,14 @@
-// Workspace list state (in-memory only; every launch starts fresh).
+// Workspace list state, persisted to localStorage (names, folders, and
+// collapse state survive a restart; sessions and the split layout do not).
 // Cross-store orchestration (e.g. moving sessions on delete) lives in
 // src/commands/actions.ts to keep stores free of circular imports.
 import { create } from "zustand";
-import { DEFAULT_WORKSPACE_ID, type Workspace } from "./workspaceGroups";
+import {
+  DEFAULT_WORKSPACE_ID,
+  nextWorkspaceName,
+  normalizeWorkspaces,
+  type Workspace,
+} from "./workspaceGroups";
 
 interface WorkspaceState {
   workspaces: Workspace[];
@@ -16,41 +22,61 @@ interface WorkspaceState {
   toggleCollapsed: (id: string) => void;
 }
 
-let counter = 1;
+const STORAGE_KEY = "helm.workspaces";
+
+function loadWorkspaces(): Workspace[] {
+  try {
+    return normalizeWorkspaces(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "[]"));
+  } catch {
+    return normalizeWorkspaces(null);
+  }
+}
+
+/** Write through and return the list, so each setter stays a single expression.
+ *  A throwing setItem (quota, private browsing) must not abort the state
+ *  change itself — losing persistence is better than losing the workspace. */
+function persist(list: Workspace[]): Workspace[] {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+  } catch {
+    /* ignore */
+  }
+  return list;
+}
 
 export const useWorkspaceStore = create<WorkspaceState>((set) => ({
-  workspaces: [{ id: DEFAULT_WORKSPACE_ID, name: "Workspace 1", collapsed: false }],
+  workspaces: loadWorkspaces(),
 
   createWorkspace: () => {
     const id = crypto.randomUUID();
-    const workspace: Workspace = {
-      id,
-      name: `Workspace ${++counter}`,
-      collapsed: false,
-    };
-    set((s) => ({ workspaces: [...s.workspaces, workspace] }));
+    set((s) => ({
+      workspaces: persist([
+        ...s.workspaces,
+        { id, name: nextWorkspaceName(s.workspaces), collapsed: false },
+      ]),
+    }));
     return id;
   },
 
   renameWorkspace: (id, name) =>
     set((s) => ({
-      workspaces: s.workspaces.map((w) => (w.id === id ? { ...w, name } : w)),
+      workspaces: persist(s.workspaces.map((w) => (w.id === id ? { ...w, name } : w))),
     })),
 
   setWorkspaceFolder: (id, folder) =>
     set((s) => ({
-      workspaces: s.workspaces.map((w) => (w.id === id ? { ...w, folder } : w)),
+      workspaces: persist(s.workspaces.map((w) => (w.id === id ? { ...w, folder } : w))),
     })),
 
   deleteWorkspace: (id) => {
     if (id === DEFAULT_WORKSPACE_ID) return;
-    set((s) => ({ workspaces: s.workspaces.filter((w) => w.id !== id) }));
+    set((s) => ({ workspaces: persist(s.workspaces.filter((w) => w.id !== id)) }));
   },
 
   toggleCollapsed: (id) =>
     set((s) => ({
-      workspaces: s.workspaces.map((w) =>
-        w.id === id ? { ...w, collapsed: !w.collapsed } : w,
+      workspaces: persist(
+        s.workspaces.map((w) => (w.id === id ? { ...w, collapsed: !w.collapsed } : w)),
       ),
     })),
 }));

@@ -7,6 +7,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import { CanvasAddon } from "@xterm/addon-canvas";
 import "@xterm/xterm/css/xterm.css";
 import type { UnlistenFn } from "@tauri-apps/api/event";
+import { isTauri } from "@tauri-apps/api/core";
 import {
   onPtyExit,
   ptyKill,
@@ -18,6 +19,7 @@ import { resolveXtermTheme, useThemeStore } from "../../store/theme";
 import { decodeOsc52 } from "./osc52";
 import { useSettingsStore } from "../../store/settings";
 import { SYMBOLS_NERD_FONT, withSymbolsFallback } from "../../store/fontFamily";
+import { t } from "../../i18n";
 import "./Terminal.css";
 
 // Agent-scan debounce. Hidden panes still scan (their approvals surface via
@@ -49,6 +51,8 @@ interface TerminalProps {
   onBusy?: () => void;
   onIdle?: () => void;
   onExit?: () => void;
+  /** PTY 完全開不起來（連退回 home 都失敗）；此 pane 沒有任何行程。 */
+  onSpawnError?: () => void;
   /** debounce 後把近期已渲染文字交出去做 agent 狀態偵測。 */
   onScan?: (text: string) => void;
   /** 原始輸出串流（已解碼文字），供逐行擷取成本/檔案變更。 */
@@ -80,6 +84,7 @@ function TerminalImpl({
   onBusy,
   onIdle,
   onExit,
+  onSpawnError,
   onScan,
   onStream,
 }: TerminalProps) {
@@ -91,11 +96,15 @@ function TerminalImpl({
   // 有自訂背景圖時終端底色改為透明，讓背景圖透出（見 resolveXtermTheme / App.css）。
   const bgImageActive = useSettingsStore((s) => !!s.backgroundImage);
 
-  const cbRef = useRef({ onTitle, onNotify, onBusy, onIdle, onExit, onScan, onStream });
+  const cbRef = useRef({
+    onTitle, onNotify, onBusy, onIdle, onExit, onSpawnError, onScan, onStream,
+  });
   // Latest-ref 模式（刻意在 render 期同步更新）：PTY 事件可能在 render 與
   // effect flush 之間到達，改在 effect 內指派會讀到過期 callback。
   // eslint-disable-next-line react-hooks/refs
-  cbRef.current = { onTitle, onNotify, onBusy, onIdle, onExit, onScan, onStream };
+  cbRef.current = {
+    onTitle, onNotify, onBusy, onIdle, onExit, onSpawnError, onScan, onStream,
+  };
 
   // Renderer: xterm 5.x + the canvas addon (DOM renderer as fallback). xterm
   // 6.x rendered full-screen TUIs (nvim's alternate screen) blank on macOS
@@ -253,16 +262,18 @@ function TerminalImpl({
       }
     });
 
-    (async () => {
-      unlistenExit = await onPtyExit(id, () => {
-        term.write("\r\n\x1b[2m[process exited]\x1b[0m\r\n");
-        cbRef.current.onExit?.();
-      });
-      if (disposed) return;
-      const effectiveShell = shell ?? (settings.defaultShell || undefined);
-      const effectiveCwd = cwd ?? (settings.defaultCwd || undefined);
-      await ptySpawn(
-        { id, cols: term.cols, rows: term.rows, cwd: effectiveCwd, shell: effectiveShell },
+    const effectiveShell = shell ?? (settings.defaultShell || undefined);
+    const effectiveCwd = cwd ?? (settings.defaultCwd || undefined);
+    // Only *report* spawn failures under Tauri: in browser-only `npm run dev`
+    // every invoke rejects, and painting three error lines into every pane
+    // would be pure noise. Deliberately not an early return before spawning —
+    // one false negative from isTauri() would leave a packaged build with no
+    // PTY at all.
+    const reportErrors = isTauri();
+
+    const spawnPty = (spawnCwd: string | undefined) =>
+      ptySpawn(
+        { id, cols: term.cols, rows: term.rows, cwd: spawnCwd, shell: effectiveShell },
         (bytes) => {
           // The channel has no unlisten: a message can land between React
           // cleanup and the Rust reader noticing pty_kill, and term.write on
@@ -286,6 +297,34 @@ function TerminalImpl({
           }
         },
       );
+
+    (async () => {
+      // A listen() rejection means "no Tauri runtime", not a spawn failure —
+      // it must not divert us into the error path below.
+      unlistenExit = await onPtyExit(id, () => {
+        term.write("\r\n\x1b[2m[process exited]\x1b[0m\r\n");
+        cbRef.current.onExit?.();
+      }).catch(() => undefined);
+      if (disposed) return;
+
+      // A persisted workspace folder can point at an unmounted volume or a
+      // directory that has since been moved, and pty.rs then fails the whole
+      // spawn. Retry in the home directory so the pane is at least a usable
+      // shell, but deliberately do NOT run launchCommand there: starting an
+      // agent in the wrong directory silently points it at the wrong repo.
+      let launched = true;
+      try {
+        await spawnPty(effectiveCwd);
+      } catch (err) {
+        if (disposed) return;
+        if (!effectiveCwd) throw err;
+        if (reportErrors) {
+          term.write(`\r\n\x1b[33m${t("terminal.cwdFailed", { cwd: effectiveCwd })}\x1b[0m\r\n`);
+          term.write(`\x1b[2m${String(err)}\x1b[0m\r\n`);
+        }
+        launched = false;
+        await spawnPty(undefined);
+      }
       if (disposed) return;
       // 權威同步:spawn（IPC 往返）期間的格子變化此前送不進 PTY,現在補上。
       spawned = true;
@@ -296,10 +335,20 @@ function TerminalImpl({
       }
       void ptyResize(id, term.cols, term.rows);
       // 啟動 agent：把指令當作使用者輸入送進 PTY（保留完整 shell 環境）。
-      if (launchCommand) {
+      if (launchCommand && launched) {
         await ptyWrite(id, `${launchCommand}\r`);
+      } else if (launchCommand && reportErrors) {
+        term.write(
+          `\x1b[2m${t("terminal.launchSkipped", { command: launchCommand })}\x1b[0m\r\n`,
+        );
       }
-    })();
+    })().catch((err) => {
+      if (disposed) return;
+      if (!reportErrors) return;
+      term.write(`\r\n\x1b[31m${t("terminal.spawnFailed")}\x1b[0m\r\n`);
+      term.write(`\x1b[2m${String(err)}\x1b[0m\r\n`);
+      cbRef.current.onSpawnError?.();
+    });
 
     const dataDisposable = term.onData((data) => {
       void ptyWrite(id, data);

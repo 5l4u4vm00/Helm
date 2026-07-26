@@ -26,9 +26,17 @@ Useful selectors (all stable class names):
 
 - Sidebar: `.workspace-group`, `.workspace-header`, `.workspace-name`,
   `.session-item`, `.session-name`
+- Rename inputs: `.workspace-rename-input` / `.session-rename-input`. Enter
+  a rename by double-clicking the row/header, or pressing `F2` or `r` while
+  it has focus; `Ctrl+A r` renames the active session from anywhere. Enter
+  commits, Escape cancels, blur commits. The two are mutually exclusive —
+  only one rename input can exist at a time.
 - Sidebar buttons (by title attr, Chinese): `新增 Workspace`,
   `在此 Workspace 新增 Session` (opens `.launcher-menu` →
-  `button[role='menuitem']`), `刪除 Workspace（session 移到預設）`
+  `button[role='menuitem']`), `刪除 Workspace（連同其下 session）`
+- Changed files / diff: `.files-panel`, `.file-row` (clickable, `tabIndex=0`),
+  and the overlay `.diff-card` with `.diff-row.kind-add|del|ctx`,
+  `.diff-hunk`, `.diff-message`, `.diff-banner`.
 - Panes: `.pane` with `data-in-layout="true|false"` (false = hidden via CSS,
   Terminal stays mounted), `data-active`, `data-solo` (ungrouped fullscreen:
   no border; the label bar with split/close buttons shows on every pane),
@@ -49,6 +57,16 @@ Gotchas:
   re-render need a beat.
 - Filter console errors: PTY/Tauri invoke rejections are expected noise in
   browser mode.
+- **`helm.workspaces` now persists in localStorage**, so a run that reuses a
+  browser profile is no longer a clean slate. Clear that key (or use a fresh
+  `browser.new_context()`) before asserting workspace counts or names.
+- Two read-only tricks make browser mode cover far more than it looks:
+  (1) seed the stores by dynamically importing them from the page — in dev,
+  `await import('/src/store/sessions.ts')` returns the *same* module instance
+  the app uses, so `useSessionStore.getState().addChangedFile(...)` works;
+  (2) stub `window.__TAURI_INTERNALS__.invoke` via `page.add_init_script` to
+  serve canned IPC payloads (e.g. `git_diff_file` fixtures). Include
+  `transformCallback` in the stub — `ptySpawn`'s Channel constructor needs it.
 
 ## Cheap checks first
 

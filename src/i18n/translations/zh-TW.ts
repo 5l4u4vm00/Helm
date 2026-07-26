@@ -123,7 +123,9 @@ export const zhTW: Record<string, string> = {
   "sidebar.removeWorkspace": "刪除 Workspace（連同其下 session）",
   "sidebar.selectFolder": "設定新 session 的預設資料夾",
   "sidebar.clearFolder": "清除預設資料夾",
+  "sidebar.folderMissing": "目前找不到這個資料夾——新 session 會改由家目錄啟動。",
   "sidebar.close": "關閉",
+  "sidebar.renameSession": "重新命名（雙擊，或按 F2 / r）——清空名稱可回到自動標題",
   "sidebar.state.thinking": "思考中",
   "sidebar.state.tool": "執行中",
   "sidebar.state.waiting": "等待審批",
@@ -158,6 +160,29 @@ export const zhTW: Record<string, string> = {
   "files.titleWithCount": "檔案變更 ({count})",
   "files.empty": "尚無變更",
   "files.close": "關閉",
+  "files.openDiff": "檢視變更：{path}",
+
+  // Diff viewer
+  "diff.title": "檔案差異",
+  "diff.baseline": "與 HEAD 比較",
+  "diff.close": "關閉",
+  "diff.reload": "重新載入",
+  "diff.prev": "上一個檔案",
+  "diff.next": "下一個檔案",
+  "diff.loading": "載入差異中…",
+  "diff.unchanged": "與 HEAD 沒有差異",
+  "diff.untracked": "新檔案——尚未加入 git",
+  "diff.binary": "二進位檔案，無法顯示文字差異",
+  "diff.notARepo": "這個檔案不在 git 儲存庫內",
+  "diff.noGit": "PATH 上找不到 git 指令",
+  "diff.missing": "磁碟上找不到這個檔案",
+  "diff.unresolvable": "無法判斷這個檔案的位置",
+  "diff.truncatedPath": "這個路徑被截斷了，無法定位",
+  "diff.scanHint": "此路徑由終端機輸出偵測而來，可能不完整。",
+  "diff.error": "無法讀取差異",
+  "diff.truncated": "差異已在 {size} KB 處截斷",
+  "diff.renderCapped": "僅顯示前 {count} 行",
+  "diff.showAll": "顯示全部",
 
   // Command palette
   "palette.dialogLabel": "命令面板",
@@ -169,6 +194,12 @@ export const zhTW: Record<string, string> = {
   "pane.splitRight": "向右分割（右鍵選 agent）",
   "pane.splitDown": "向下分割（右鍵選 agent）",
   "pane.close": "關閉",
+
+  // Terminal spawn problems (written into the pane itself)
+  "terminal.cwdFailed": "無法在 {cwd} 啟動 shell，改由家目錄啟動。",
+  "terminal.launchSkipped":
+    "已略過自動啟動 {command}，因為這不是你指定的資料夾。請自行 cd 到目標目錄後再執行。",
+  "terminal.spawnFailed": "無法為這個 session 啟動 shell。",
 
   // Command categories
   "category.view": "檢視",
@@ -194,6 +225,7 @@ export const zhTW: Record<string, string> = {
   "command.newSession": "新增 Session（shell）",
   "command.nextSession": "下一個 Session",
   "command.prevSession": "上一個 Session",
+  "command.renameSession": "重新命名 Session",
   "command.switchToIndex": "切換到第 {n} 個 Session",
   "command.newWorkspace": "新增 Workspace",
   "command.toggleFiles": "檔案變更面板",

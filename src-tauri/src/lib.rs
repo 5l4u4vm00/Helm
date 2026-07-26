@@ -1,9 +1,11 @@
 mod background;
 mod config;
 mod fonts;
+mod git;
 mod hookserver;
 mod integrations;
 mod notify;
+mod paths;
 mod pty;
 
 use hookserver::HookServer;
@@ -175,6 +177,8 @@ pub fn run() {
             integrations::install_claude_hooks,
             integrations::install_claude_statusline,
             fonts::list_monospace_fonts,
+            git::git_diff_file,
+            paths::dir_exists,
             notify::notify_session,
             notify::notification_status,
             notify::open_notification_settings,

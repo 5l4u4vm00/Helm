@@ -39,6 +39,7 @@ export const PREFIX_TABLE: PrefixBinding[] = [
   { key: "c", commandId: "session:new" },
   { key: "n", commandId: "session:next" },
   { key: "p", commandId: "session:prev" },
+  { key: "r", commandId: "session:rename-active" },
   ...Array.from({ length: 9 }, (_, i) => ({
     code: `Digit${i + 1}`,
     commandId: `session:switch-${i + 1}`,

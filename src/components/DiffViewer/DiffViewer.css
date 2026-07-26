@@ -1,0 +1,173 @@
+/* Read-only diff overlay. Sized for code (~90 columns), unlike the 300px
+   changed-files list it opens from. */
+.diff-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+}
+
+.diff-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.diff-card {
+  position: absolute;
+  top: max(16px, 6%);
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(900px, 92vw);
+  max-height: calc(100vh - max(16px, 6%) - 16px);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  background: var(--sidebar-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  overflow: hidden;
+  outline: none;
+}
+
+.diff-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  flex: 0 0 auto;
+}
+
+.diff-path {
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  direction: rtl; /* keep the file name visible when the path is long */
+  text-align: left;
+  font-family: "SF Mono", Menlo, monospace;
+  color: var(--fg);
+}
+
+.diff-stats {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 6px;
+  font-family: "SF Mono", Menlo, monospace;
+  font-size: 11px;
+}
+
+.diff-stat-add {
+  color: #a6e3a1;
+}
+
+.diff-stat-del {
+  color: #f38ba8;
+}
+
+.diff-baseline {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+/* Only the body scrolls, so the header stays put on long diffs. */
+.diff-body {
+  flex: 1 1 auto;
+  overflow: auto;
+  padding: 4px 0;
+  font-family: "SF Mono", Menlo, monospace;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.diff-row {
+  display: flex;
+  white-space: pre;
+  tab-size: 4;
+}
+
+.diff-row.kind-add {
+  background: #a6e3a133;
+}
+
+.diff-row.kind-del {
+  background: #f38ba833;
+}
+
+.diff-gutter {
+  flex: 0 0 auto;
+  width: 44px;
+  padding-right: 8px;
+  text-align: right;
+  color: var(--muted);
+  opacity: 0.6;
+  /* Copying a diff should yield the code, not the line numbers. */
+  user-select: none;
+}
+
+.diff-text {
+  flex: 1 1 auto;
+  padding-right: 10px;
+}
+
+.diff-row.kind-add .diff-text {
+  color: #a6e3a1;
+}
+
+.diff-row.kind-del .diff-text {
+  color: #f38ba8;
+}
+
+.diff-hunk {
+  padding: 4px 10px;
+  margin-top: 4px;
+  background: var(--active);
+  color: var(--muted);
+  font-size: 11px;
+  white-space: pre;
+  overflow-x: auto;
+}
+
+.diff-message {
+  padding: 24px 16px;
+  text-align: center;
+  color: var(--muted);
+  font-family: inherit;
+  font-size: 12px;
+}
+
+.diff-hint {
+  margin-top: 6px;
+  font-size: 11px;
+  opacity: 0.8;
+}
+
+.diff-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: var(--hover);
+  color: var(--muted);
+  font-family: inherit;
+  font-size: 11px;
+}
+
+.diff-show-all {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--fg);
+  cursor: pointer;
+  font-size: 11px;
+  padding: 1px 8px;
+}
+
+.diff-show-all:hover {
+  background: var(--hover);
+}

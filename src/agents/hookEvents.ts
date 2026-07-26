@@ -3,12 +3,14 @@
 // AgentEvent。Claude Code 與 Codex 的 hooks 共用同一套欄位（hook_event_name /
 // tool_name / tool_input），statusline 則是 Claude Code 專屬的用量來源。
 // 純函式、無執行期依賴，node 測試可直接載入。
+// .ts 副檔名：讓 node 測試（strip-types 模式）能直接載入本模組。
+import type { ChangedFile } from "./extract.ts";
 
 /** 正規化後的事件。permission 進 waiting，stop 進 done，其餘更新統計。 */
 export type AgentEvent =
   | { kind: "permission"; prompt: string }
   | { kind: "stop" }
-  | { kind: "toolDone"; file?: { op: string; path: string } }
+  | { kind: "toolDone"; file?: ChangedFile }
   | {
       kind: "usage";
       usage: {
@@ -126,7 +128,13 @@ export function normalizeHookPayload(source: string, payload: unknown): AgentEve
       const op = toolName ? FILE_TOOL_OPS[toolName] : undefined;
       const path =
         op && isRecord(payload.tool_input) ? filePathOf(payload.tool_input) : undefined;
-      return { kind: "toolDone", file: op && path ? { op, path } : undefined };
+      // payload.cwd is the agent CLI's live working directory for this call —
+      // a better git anchor than the session's creation-time cwd snapshot,
+      // and what makes Codex's workspace-relative paths resolvable.
+      return {
+        kind: "toolDone",
+        file: op && path ? { op, path, source: "hook", cwd: str(payload.cwd) } : undefined,
+      };
     }
     default:
       return undefined;

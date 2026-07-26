@@ -11,13 +11,28 @@ import {
   workspaceChangedFileCount,
 } from "../../store/workspaceGroups";
 import { focusActiveTerminal } from "../../focus/focusUtils";
+import { handleListKey } from "../../focus/listNav";
+import type { ChangedFile } from "../../agents/extract";
 import { useT } from "../../i18n";
 import "./ChangedFilesPanel.css";
 
 // Memoized: session refs are stable for untouched sessions, so streaming file
 // changes in one session re-render only that group.
 const SessionFileGroup = memo(function SessionFileGroup({ session }: { session: Session }) {
+  const t = useT();
   const files = session.changedFiles ?? [];
+
+  const onRowKey = (e: React.KeyboardEvent, file: ChangedFile) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      useUiStore.getState().openDiff({ ...file, sessionId: session.id });
+    } else if (
+      handleListKey(e.key, e.currentTarget.closest(".files-list"), ".file-row")
+    ) {
+      e.preventDefault();
+    }
+  };
+
   return (
     <div className="files-group">
       <div
@@ -31,11 +46,19 @@ const SessionFileGroup = memo(function SessionFileGroup({ session }: { session: 
         <span className="files-group-count">{files.length}</span>
       </div>
       {files.map((f) => (
-        <div className="file-row" key={`${session.id}:${f.path}`}>
+        <div
+          className="file-row"
+          key={`${session.id}:${f.path}`}
+          role="button"
+          tabIndex={0}
+          title={t("files.openDiff", { path: f.path })}
+          // getState(): no subscription and no new prop, so this component's
+          // memo keeps comparing only `session`.
+          onClick={() => useUiStore.getState().openDiff({ ...f, sessionId: session.id })}
+          onKeyDown={(e) => onRowKey(e, f)}
+        >
           <span className={`file-op op-${f.op.toLowerCase()}`}>{f.op}</span>
-          <span className="file-path" title={f.path}>
-            {f.path}
-          </span>
+          <span className="file-path">{f.path}</span>
         </div>
       ))}
     </div>

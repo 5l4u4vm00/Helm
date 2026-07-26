@@ -5,6 +5,7 @@
 // state tick re-renders only its own row.
 import { memo } from "react";
 import { useSessionStore } from "../../store/sessions";
+import { useUiStore } from "../../store/ui";
 import type { SidebarSession } from "../../store/sidebarProjection";
 import type { SplitClusterInfo } from "../../store/workspaceGroups";
 import { activateSession, newSession } from "../../commands/actions";
@@ -52,8 +53,27 @@ export const SessionItem = memo(function SessionItem({
 }: SessionItemProps) {
   const t = useT();
   const closeSession = useSessionStore((x) => x.closeSession);
+  const renameSession = useSessionStore((x) => x.renameSession);
+  // Rename state comes from the ui store (not props) so this memo still skips
+  // rows whose own state didn't tick — same reasoning as WorkspaceGroup.
+  const renaming = useUiStore((x) => x.renamingSessionId === s.id);
+  const setRenamingId = useUiStore((x) => x.setRenamingSessionId);
+  const onRenameStart = () => setRenamingId(s.id);
+  const onRenameEnd = () => setRenamingId(null);
+
+  const commitRename = (value: string) => {
+    renameSession(s.id, value);
+    onRenameEnd();
+  };
+
+  const onRenameKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    e.stopPropagation();
+    if (e.key === "Enter") commitRename(e.currentTarget.value);
+    else if (e.key === "Escape") onRenameEnd();
+  };
 
   const onKeyDown = (e: React.KeyboardEvent) => {
+    if (renaming) return;
     if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
       activateSession(s.id);
@@ -70,6 +90,9 @@ export const SessionItem = memo(function SessionItem({
     } else if (e.key === "a") {
       e.preventDefault();
       newSession(undefined, s.workspaceId);
+    } else if (e.key === "F2" || e.key === "r") {
+      e.preventDefault();
+      onRenameStart();
     } else if (e.key === "Escape") {
       e.preventDefault();
       focusActiveTerminal();
@@ -92,15 +115,33 @@ export const SessionItem = memo(function SessionItem({
       data-region-entry={isActive ? "true" : undefined}
       data-cluster-pos={clusterPos}
       data-cluster-group={clusterGroupId ?? undefined}
-      draggable
+      // A draggable ancestor breaks text selection inside the input in WebKit.
+      draggable={!renaming}
       onDragStart={onDragStart}
-      onClick={() => activateSession(s.id)}
+      onClick={() => {
+        if (!renaming) activateSession(s.id);
+      }}
+      onDoubleClick={() => {
+        if (!renaming) onRenameStart();
+      }}
       onKeyDown={onKeyDown}
     >
       <span className={`status-dot ${cls}`} title={cls in stateLabelKeys ? t(stateLabelKeys[cls]) : ""} />
-      <span className="session-name" title={s.title}>
-        {s.title}
-      </span>
+      {renaming ? (
+        <input
+          className="session-rename-input"
+          defaultValue={s.title}
+          autoFocus
+          onFocus={(e) => e.currentTarget.select()}
+          onClick={(e) => e.stopPropagation()}
+          onKeyDown={onRenameKeyDown}
+          onBlur={(e) => commitRename(e.currentTarget.value)}
+        />
+      ) : (
+        <span className="session-name" title={t("sidebar.renameSession")}>
+          {s.title}
+        </span>
+      )}
       <button
         className="icon-btn close"
         title={t("sidebar.close")}

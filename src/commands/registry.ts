@@ -24,6 +24,7 @@ import {
   focusSidebar,
   newSession,
   newWorkspace,
+  renameActiveSession,
   resizeActivePane,
   respondActiveApproval,
   respondAllApprovals,
@@ -177,6 +178,14 @@ function staticCommands(): Command[] {
       keywords: "previous session",
       enabled: () => useSessionStore.getState().sessions.length >= 2,
       run: () => cycleSession(-1),
+    },
+    {
+      id: "session:rename-active",
+      title: t("command.renameSession"),
+      category: t("category.session"),
+      keywords: "rename session title name",
+      enabled: hasActive,
+      run: renameActiveSession,
     },
     ...numberedSwitchCommands(),
     {

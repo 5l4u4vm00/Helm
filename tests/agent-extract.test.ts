@@ -54,6 +54,7 @@ check(
 {
   const f = extractFromLine(claude, "⏺ Update(demo.txt)").file;
   check("claude 檔案變更 ⏺ Update", f?.op === "Update" && f?.path === "demo.txt");
+  check("逐行擷取同樣標記 source: scan", f?.source === "scan");
 }
 check(
   "claude tokens ↑ 輸入",
@@ -177,6 +178,9 @@ check(
     "files ⏺ Write op/path",
     files[1]?.op === "Write" && files[1]?.path === "src/a.ts",
   );
+  // provenance：viewport 掃到的路徑可能只是檔名、甚至被終端寬度截斷，
+  // diff 視圖需要能與 hook 來源區分。
+  check("files 標記 source: scan", files.every((f) => f.source === "scan"));
 }
 // 同一路徑出現兩次 → 一筆，op 取後面的行
 {

@@ -34,6 +34,7 @@ import { useSettingsStore } from "./store/settings";
 import { groupTreeOf, useLayoutStore } from "./store/layout";
 import { computeLayout, type RectPct } from "./store/layoutTree";
 import { useUiStore } from "./store/ui";
+import { useFolderStatusStore } from "./store/folderStatus";
 import { matchBinding } from "./commands/keymap";
 import { resolvePrefixInput } from "./commands/prefix";
 import { usePrefixStore } from "./store/prefix";
@@ -42,7 +43,7 @@ import { runCommand } from "./commands/registry";
 import { listen } from "@tauri-apps/api/event";
 import { readImageDataUrl } from "./ipc/background";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { activateSession } from "./commands/actions";
+import { activateSession, newSession } from "./commands/actions";
 import { setMenuLanguage } from "./ipc/menu";
 import { checkForUpdate } from "./ipc/update";
 import { useUpdateStore } from "./store/update";
@@ -84,13 +85,21 @@ const SettingsDialog = lazy(() =>
   })),
 );
 
+const DiffViewer = lazy(() =>
+  import("./components/DiffViewer/DiffViewer").then((m) => ({
+    default: m.DiffViewer,
+  })),
+);
+
 function LazyOverlays() {
   const paletteOpen = useUiStore((s) => s.paletteOpen);
   const settingsOpen = useUiStore((s) => s.settingsOpen);
+  const diffOpen = useUiStore((s) => s.diffTarget !== null);
   return (
     <Suspense fallback={null}>
       {paletteOpen && <CommandPalette />}
       {settingsOpen && <SettingsDialog />}
+      {diffOpen && <DiffViewer />}
     </Suspense>
   );
 }
@@ -338,6 +347,14 @@ const Pane = memo(function Pane({ session: s, rect, active, solo }: PaneProps) {
           useSessionStore.getState().clearApproval(s.id);
           useSessionStore.getState().setStatus(s.id, "exited");
         }}
+        onSpawnError={() => {
+          // No PTY at all (not even the home-directory retry): "exited" is the
+          // honest state, and its stickiness is correct here because nothing
+          // will revive this PTY without a remount. The cwd-fallback path
+          // deliberately does not call this — a real shell is running there.
+          useSessionStore.getState().clearApproval(s.id);
+          useSessionStore.getState().setStatus(s.id, "exited");
+        }}
         onScan={(text) => handleScan(s.id, text)}
         onStream={(text) => handleStream(s.id, text)}
       />
@@ -439,8 +456,17 @@ function App() {
           notifyPendingPrompt(s);
         }
       });
-      // 每次啟動都是全新配置：一個預設 workspace + 一個新 session。
-      useSessionStore.getState().createSession();
+      // A workspace folder that was unreachable may have come back (volume
+      // remounted) while the app was in the background. Only already-missing
+      // paths are re-probed, so this stays nearly free.
+      window.addEventListener("focus", () => {
+        useFolderStatusStore.getState().recheckMissing();
+      });
+      // Workspaces are restored from localStorage; sessions are not — every
+      // launch starts with exactly one fresh session in the focused workspace.
+      // Via newSession (not createSession) so it picks up that workspace's
+      // persisted folder and gets expanded if it was left collapsed.
+      newSession();
       void checkForUpdateOnStartup();
     })();
   }, []);

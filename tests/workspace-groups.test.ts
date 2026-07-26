@@ -6,6 +6,8 @@ import {
   clusterBySplitGroup,
   flattenGroupedIds,
   groupSessions,
+  nextWorkspaceName,
+  normalizeWorkspaces,
   pendingApprovalsInWorkspace,
   resolveFocusedWorkspace,
   sessionsInWorkspace,
@@ -166,6 +168,84 @@ function sess(
     );
     check("no groups → all solo", result.every((r) => r.cluster.position === "solo"));
   }
+}
+
+// --- normalizeWorkspaces (persisted list validation) ---
+{
+  console.log("\nnormalizeWorkspaces:");
+
+  for (const [label, raw] of [
+    ["null", null],
+    ["物件（非陣列）", { nope: 1 }],
+    ["字串", "[]"],
+    ["空陣列", []],
+  ] as const) {
+    const out = normalizeWorkspaces(raw);
+    check(
+      `${label} → 單一預設 workspace`,
+      out.length === 1 && out[0].id === DEFAULT_WORKSPACE_ID,
+    );
+  }
+
+  {
+    const out = normalizeWorkspaces([{ id: "x", name: "X", collapsed: false }]);
+    check(
+      "缺少 default → 補在最前（否則所有 workspace 都可刪）",
+      out.length === 2 && out[0].id === DEFAULT_WORKSPACE_ID && out[1].id === "x",
+    );
+  }
+
+  {
+    const out = normalizeWorkspaces([
+      { id: DEFAULT_WORKSPACE_ID, name: "First", collapsed: false },
+      { id: DEFAULT_WORKSPACE_ID, name: "Second", collapsed: true },
+    ]);
+    check("重複 id → 保留第一個", out.length === 1 && out[0].name === "First");
+  }
+
+  {
+    const out = normalizeWorkspaces([
+      { id: DEFAULT_WORKSPACE_ID, name: "Keep", collapsed: true, folder: "/tmp/a" },
+      { id: "bad", name: "Bad", collapsed: "yes" },
+      { id: "", name: "Empty id", collapsed: false },
+      { id: "badfolder", name: "BadFolder", collapsed: false, folder: 7 },
+      null,
+      "nope",
+    ]);
+    check("壞元素被丟掉、好的兄弟存活", out.length === 1 && out[0].name === "Keep");
+    check("collapsed 與 folder 能 round-trip", out[0].collapsed === true && out[0].folder === "/tmp/a");
+  }
+
+  {
+    const out = normalizeWorkspaces([
+      { id: DEFAULT_WORKSPACE_ID, name: "D", collapsed: false, evil: "x" },
+    ]);
+    check("未知欄位不被帶過去", !("evil" in out[0]));
+  }
+
+  {
+    const out = normalizeWorkspaces([{ id: DEFAULT_WORKSPACE_ID, name: "D", collapsed: false }]);
+    check("沒有 folder 時不生出 folder 欄位", !("folder" in out[0]));
+  }
+}
+
+// --- nextWorkspaceName (derived, not a module counter) ---
+{
+  console.log("\nnextWorkspaceName:");
+  check("空清單 → Workspace 1", nextWorkspaceName([]) === "Workspace 1");
+  check("[Workspace 1] → Workspace 2", nextWorkspaceName([ws("a", "Workspace 1")]) === "Workspace 2");
+  check(
+    "有缺口時取最大值 +1（不重用已刪除的號碼）",
+    nextWorkspaceName([ws("a", "Workspace 1"), ws("b", "Workspace 3")]) === "Workspace 4",
+  );
+  check(
+    "全部被改過名 → 退回 length + 1",
+    nextWorkspaceName([ws("a", "api"), ws("b", "web")]) === "Workspace 3",
+  );
+  check(
+    "非十進位尾綴不算數（Workspace 2x）",
+    nextWorkspaceName([ws("a", "Workspace 2x")]) === "Workspace 2",
+  );
 }
 
 console.log(`\nworkspace-groups: ${passed} checks passed`);

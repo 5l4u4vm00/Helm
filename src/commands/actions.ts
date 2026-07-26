@@ -55,7 +55,25 @@ export function newSession(launcher?: AgentLauncher, workspaceId?: string): void
   const store = useSessionStore.getState();
   const targetWs = workspaceId ?? resolveFocusedWorkspace(store.sessions, store.activeId);
   store.createSession(launcher, targetWs, folderForWorkspace(targetWs));
+  // A new session must be visible, and the collapse state now survives a
+  // restart — so bootstrap can land in a workspace the user left collapsed.
+  expandWorkspace(targetWs);
   requestAnimationFrame(() => focusActiveTerminal());
+}
+
+/** Put the active session's sidebar row into rename mode (palette / Ctrl+A r). */
+export function renameActiveSession(): void {
+  const { sessions, activeId } = useSessionStore.getState();
+  const active = sessions.find((s) => s.id === activeId);
+  if (!active) return;
+  const ui = useUiStore.getState();
+  if (ui.sidebarHidden) ui.setSidebarHidden(false);
+  expandWorkspace(active.workspaceId);
+  // Deliberately NOT focusSidebar(): its requestAnimationFrame(focusRegion)
+  // fires after React mounts the rename input, moves focus to the row, and the
+  // input's onBlur commits and closes the rename in the same frame. The
+  // input's own autoFocus is what should win here.
+  ui.setRenamingSessionId(active.id);
 }
 
 /** Split the active pane, creating a new session in the active session's group. */

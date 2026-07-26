@@ -12,11 +12,14 @@ import {
 import { useNotificationsStore } from "./notifications";
 import type { NotifyKind } from "./notificationCenter";
 import { clearApprovalSuppress } from "./approvalSuppress";
+import { mergeChangedFile } from "./changedFiles";
 import { clearScanState } from "./scanState";
+import { resolveRename, shouldAcceptAutoTitle } from "./sessionTitle";
 import { useSettingsStore } from "./settings";
 import { notify } from "../ipc/notify";
 import { getProfile } from "../agents/registry";
 import { t } from "../i18n";
+import type { ChangedFile } from "../agents/extract";
 import type { AgentLauncher, AgentState, PromptKind } from "../agents/types";
 import type { PlanUsage } from "../agents/hookEvents";
 
@@ -29,6 +32,8 @@ export interface Session {
   createdAt: number;
   workspaceId: string; // 側欄分組（純視覺，不影響 PTY）
   cwd?: string; // PTY 啟動目錄（建立時由 workspace 資料夾快照，之後不變）
+  // 使用者明確改過名：此後 OSC 0/2 標題不再覆寫 title（見 sessionTitle.ts）。
+  titleLocked?: boolean;
   // ---- agent 相關 ----
   agentId: string | null; // profile id（launcher 指定或被動偵測到）
   agentLabel?: string;
@@ -43,7 +48,7 @@ export interface Session {
   tokensIn?: number;
   tokensOut?: number;
   contextLeftPercent?: number;
-  changedFiles?: { op: string; path: string }[];
+  changedFiles?: ChangedFile[];
 }
 
 interface SessionState {
@@ -57,6 +62,8 @@ interface SessionState {
   moveSessionToWorkspace: (sessionId: string, workspaceId: string) => void;
   setActive: (id: string) => void;
   setTitle: (id: string, title: string) => void;
+  /** Explicit user rename; an empty name unlocks the automatic title again. */
+  renameSession: (id: string, title: string) => void;
   setStatus: (id: string, status: SessionStatus) => void;
   setDetectedAgent: (id: string, profileId: string, label: string) => void;
   setAgentState: (id: string, state: AgentState, prompt?: string, kind?: PromptKind) => void;
@@ -71,7 +78,7 @@ interface SessionState {
       planUsage?: PlanUsage;
     },
   ) => void;
-  addChangedFile: (id: string, file: { op: string; path: string }) => void;
+  addChangedFile: (id: string, file: ChangedFile) => void;
 }
 
 let counter = 0;
@@ -211,9 +218,24 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   // still rebuild the sessions array and re-render every subscriber.
   setTitle: (id, title) => {
     const cur = get().sessions.find((x) => x.id === id);
-    if (!cur || cur.title === title) return;
+    if (!cur || !shouldAcceptAutoTitle(cur, title)) return;
     set((s) => ({
       sessions: s.sessions.map((x) => (x.id === id ? { ...x, title } : x)),
+    }));
+  },
+
+  // Deliberately no identical-title short-circuit: pressing Enter on the
+  // unchanged name is still a confirmation that has to flip the lock.
+  renameSession: (id, title) => {
+    const cur = get().sessions.find((x) => x.id === id);
+    if (!cur) return;
+    const next = resolveRename(title);
+    const patch =
+      next.kind === "set"
+        ? { title: next.title, titleLocked: true }
+        : { titleLocked: false };
+    set((s) => ({
+      sessions: s.sessions.map((x) => (x.id === id ? { ...x, ...patch } : x)),
     }));
   },
 
@@ -311,11 +333,10 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     const cur = get().sessions.find((x) => x.id === id);
     if (!cur) return;
     const files = cur.changedFiles ?? [];
-    const idx = files.findIndex((f) => f.path === file.path);
-    if (idx >= 0 && files[idx].op === file.op) return;
-    // 已存在 → 更新 op；否則追加（保留首次出現順序）。
-    const next =
-      idx >= 0 ? files.map((f, i) => (i === idx ? file : f)) : [...files, file];
+    const next = mergeChangedFile(files, file);
+    // Reference-equal means nothing changed: viewport re-scans re-report the
+    // same lines constantly and must not tick the store.
+    if (next === files) return;
     set((s) => ({
       sessions: s.sessions.map((x) =>
         x.id === id ? { ...x, changedFiles: next } : x,

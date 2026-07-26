@@ -1,8 +1,17 @@
 // 應用層 UI 狀態（面板開關）。
 import { create } from "zustand";
+import type { ChangedFile } from "../agents/extract";
+
+/** Which changed file the diff viewer is showing. */
+export interface DiffTarget extends ChangedFile {
+  sessionId: string;
+}
 
 interface UiState {
   filesOpen: boolean;
+  /** Diff overlay target; null when closed. Deliberately independent of
+   *  filesOpen — closing the list must not throw away the diff. */
+  diffTarget: DiffTarget | null;
   notificationsOpen: boolean;
   paletteOpen: boolean;
   settingsOpen: boolean;
@@ -10,6 +19,8 @@ interface UiState {
   sidebarHidden: boolean;
   // 剛用工具列「新增 Workspace」建立、待側欄立即進入命名的 workspace id。
   renamingWorkspaceId: string | null;
+  // 側欄正在改名的 session id。與上者互斥：同時開兩個編輯框沒有意義。
+  renamingSessionId: string | null;
   toggleFiles: () => void;
   setFilesOpen: (v: boolean) => void;
   toggleSidebar: () => void;
@@ -19,15 +30,20 @@ interface UiState {
   setPaletteOpen: (v: boolean) => void;
   setSettingsOpen: (v: boolean) => void;
   setRenamingWorkspaceId: (id: string | null) => void;
+  setRenamingSessionId: (id: string | null) => void;
+  openDiff: (target: DiffTarget) => void;
+  closeDiff: () => void;
 }
 
 export const useUiStore = create<UiState>((set, get) => ({
   filesOpen: false,
+  diffTarget: null,
   notificationsOpen: false,
   paletteOpen: false,
   settingsOpen: false,
   sidebarHidden: false,
   renamingWorkspaceId: null,
+  renamingSessionId: null,
   toggleFiles: () => set({ filesOpen: !get().filesOpen }),
   setFilesOpen: (v) => set({ filesOpen: v }),
   toggleSidebar: () => set({ sidebarHidden: !get().sidebarHidden }),
@@ -36,5 +52,9 @@ export const useUiStore = create<UiState>((set, get) => ({
   setNotificationsOpen: (v) => set({ notificationsOpen: v }),
   setPaletteOpen: (v) => set({ paletteOpen: v }),
   setSettingsOpen: (v) => set({ settingsOpen: v }),
-  setRenamingWorkspaceId: (id) => set({ renamingWorkspaceId: id }),
+  // 兩個改名旗標互斥：開一個就關掉另一個。
+  setRenamingWorkspaceId: (id) => set({ renamingWorkspaceId: id, renamingSessionId: null }),
+  setRenamingSessionId: (id) => set({ renamingSessionId: id, renamingWorkspaceId: null }),
+  openDiff: (target) => set({ diffTarget: target }),
+  closeDiff: () => set({ diffTarget: null }),
 }));

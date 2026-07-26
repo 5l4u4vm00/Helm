@@ -2,7 +2,7 @@
 // Regions are marked with data-focus-region so F6 can cycle between them;
 // nothing here auto-refocuses on blur (that would fight other regions).
 
-const REGION_ORDER = ["sidebar", "toolbar", "terminal", "approvals", "files"] as const;
+const REGION_ORDER = ["sidebar", "toolbar", "terminal", "approvals", "files", "diff"] as const;
 
 export type FocusRegion = (typeof REGION_ORDER)[number];
 

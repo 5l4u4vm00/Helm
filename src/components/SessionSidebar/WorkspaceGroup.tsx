@@ -1,10 +1,11 @@
 // One collapsible workspace group: header (chevron / name / count / actions)
 // plus its session rows. The whole group is a drop target so a session can
 // be dragged in even when the group is collapsed.
-import { memo, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { useSessionStore } from "../../store/sessions";
 import type { SidebarSession } from "../../store/sidebarProjection";
-import { useWorkspaceStore, expandWorkspace } from "../../store/workspaces";
+import { useFolderStatusStore } from "../../store/folderStatus";
+import { useWorkspaceStore } from "../../store/workspaces";
 import { useUiStore } from "../../store/ui";
 import type { SplitClusterInfo, Workspace } from "../../store/workspaceGroups";
 import {
@@ -44,6 +45,15 @@ export const WorkspaceGroup = memo(function WorkspaceGroup({
   const setRenamingId = useUiStore((s) => s.setRenamingWorkspaceId);
   const onRenameStart = () => setRenamingId(w.id);
   const onRenameEnd = () => setRenamingId(null);
+  // A persisted folder can be gone by the next launch (unmounted volume,
+  // deleted worktree); probe once per path and flag it rather than guessing.
+  const probeFolder = useFolderStatusStore((s) => s.probe);
+  const folderMissing = useFolderStatusStore((s) =>
+    w.folder ? s.missing[w.folder] === true : false,
+  );
+  useEffect(() => {
+    if (w.folder) probeFolder(w.folder);
+  }, [w.folder, probeFolder]);
   const [dragOver, setDragOver] = useState(false);
   // 所有 waiting 一視同仁：agentState === "waiting" 涵蓋 approval / question /
   // plan（question/plan 沒有 pendingApproval，但同樣需要使用者處理）。
@@ -107,10 +117,8 @@ export const WorkspaceGroup = memo(function WorkspaceGroup({
     else if (e.key === "Escape") onRenameEnd();
   };
 
-  const addSession = () => {
-    newSession(undefined, w.id);
-    expandWorkspace(w.id);
-  };
+  // newSession expands the target workspace itself.
+  const addSession = () => newSession(undefined, w.id);
 
   const chooseFolder = async () => {
     const path = await pickFolder(w.folder);
@@ -196,7 +204,7 @@ export const WorkspaceGroup = memo(function WorkspaceGroup({
           </button>
         )}
         <button
-          className={`icon-btn hover-action ${w.folder ? "on" : ""}`}
+          className={`icon-btn hover-action ${w.folder && !folderMissing ? "on" : ""}`}
           title={t("sidebar.selectFolder")}
           tabIndex={-1}
           onClick={(e) => {
@@ -234,7 +242,11 @@ export const WorkspaceGroup = memo(function WorkspaceGroup({
         )}
       </div>
       {w.folder && (
-        <div className="workspace-folder" title={w.folder}>
+        <div
+          className="workspace-folder"
+          data-missing={folderMissing ? "true" : undefined}
+          title={folderMissing ? `${w.folder}\n${t("sidebar.folderMissing")}` : w.folder}
+        >
           <span className="workspace-folder-icon">📁</span>
           <span className="workspace-folder-path">{w.folder}</span>
           <button

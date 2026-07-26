@@ -125,6 +125,15 @@
   color: #a6e3a1;
 }
 
+.file-row {
+  cursor: pointer;
+}
+
+.file-row:focus-visible {
+  outline: 1px solid var(--muted);
+  outline-offset: -1px;
+}
+
 .file-path {
   font-family: "SF Mono", Menlo, monospace;
   font-size: 12px;

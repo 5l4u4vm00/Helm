@@ -98,16 +98,25 @@
   animation: pulse 0.8s ease-in-out infinite;
 }
 
-.workspace-rename-input {
+.workspace-rename-input,
+.session-rename-input {
   flex: 1 1 auto;
   min-width: 0;
-  font-size: 11px;
-  font-weight: 700;
   background: var(--sidebar-bg);
   border: 1px solid var(--border);
   border-radius: 4px;
   color: var(--fg);
   padding: 1px 4px;
+}
+
+.workspace-rename-input {
+  font-size: 11px;
+  font-weight: 700;
+}
+
+/* Matches .session-name so the row does not jump when editing starts. */
+.session-rename-input {
+  font-size: 12.5px;
 }
 
 .workspace-header .icon-btn.hover-action {
@@ -148,6 +157,17 @@
   text-overflow: ellipsis;
   direction: rtl; /* keep the trailing path segment (the folder name) visible */
   text-align: left;
+}
+
+/* Persisted folder that is not reachable right now (unmounted volume, moved
+   project): keep showing the path, but say it will not be used. */
+.workspace-folder[data-missing="true"] .workspace-folder-path {
+  color: #fab387;
+  text-decoration: line-through;
+}
+
+.workspace-folder[data-missing="true"] .workspace-folder-icon {
+  opacity: 0.4;
 }
 
 .workspace-folder .icon-btn.hover-action {

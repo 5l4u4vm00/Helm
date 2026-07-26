@@ -113,6 +113,31 @@ check(
   });
   check("PostToolUse 非檔案工具 → toolDone 無 file", ev?.kind === "toolDone" && !ev.file);
 }
+{
+  // provenance：hook 來的路徑可信（絕對），且 payload.cwd 是這次工具呼叫當下
+  // agent 的即時工作目錄——比 session 建立時的 cwd 快照更適合當 git 錨點。
+  const ev = normalizeHookPayload("claude-code", {
+    hook_event_name: "PostToolUse",
+    tool_name: "Edit",
+    cwd: "/repo",
+    tool_input: { file_path: "/repo/src/a.ts" },
+  });
+  check(
+    "PostToolUse 標記 source: hook 並帶上 cwd",
+    ev?.kind === "toolDone" && ev.file?.source === "hook" && ev.file.cwd === "/repo",
+  );
+}
+{
+  const ev = normalizeHookPayload("claude-code", {
+    hook_event_name: "PostToolUse",
+    tool_name: "Edit",
+    tool_input: { file_path: "/repo/src/a.ts" },
+  });
+  check(
+    "payload 沒有 cwd 時 file.cwd 為 undefined",
+    ev?.kind === "toolDone" && ev.file?.source === "hook" && ev.file.cwd === undefined,
+  );
+}
 
 // ---- statusline usage ----
 {

@@ -44,8 +44,8 @@ The sidebar has two levels: **workspaces** (groups) containing **sessions**
   to name right away.
 - **Rename a workspace** — double-click its header, or select it and press
   `F2`.
-- **Delete a workspace** — hover its header and click the **×**; its
-  sessions move to the default workspace (which can't be deleted).
+- **Delete a workspace** — hover its header and click the **×**; this also
+  closes every session in it. The default workspace can't be deleted.
 - **Collapse/expand** — click the header or its chevron.
 - **Set a default folder** — hover the workspace and click **📁** to pick a
   folder; new sessions started in that workspace open there. The chosen path
@@ -54,6 +54,10 @@ The sidebar has two levels: **workspaces** (groups) containing **sessions**
 - **New session in a workspace** — hover the workspace and click its **+**.
 - **Move a session** — drag it onto another workspace (even a collapsed
   one) to drop it there.
+- **Rename a session** — double-click it, or select it and press `F2` or
+  `r` (`Ctrl+A r` works from anywhere). Handy when three tabs are all
+  running `claude`. Clear the name to go back to the automatic one the
+  agent sets.
 - **Close a session** — click its **×**, or select it and press
   `Delete`/`Backspace`.
 
@@ -61,6 +65,12 @@ Each session shows a status dot (thinking, running, awaiting approval, done,
 error — or idle/running/exited for a plain shell) plus an agent badge if
 one is running. A workspace you're not currently viewing shows a badge with
 its pending-approval count — click it to jump straight to that approval.
+
+Your workspaces — their names, folders, and collapsed state — are remembered
+between launches. Sessions are not: every launch starts with one fresh
+session. If a workspace's folder isn't reachable (an external drive that
+isn't mounted, a project you moved), its path is shown struck through and
+new sessions there start in your home directory instead.
 
 ## Split groups
 
@@ -95,7 +105,11 @@ fullscreen.
   and input/output token counts, plus a workspace-wide total (Σ).
 - **Changed files** — click the toolbar's file-count button (or
   `Ctrl+A f`) to see every file an agent has touched in the current
-  workspace, grouped by session.
+  workspace, grouped by session. **Click any file to see its diff** — what
+  changed against the last commit, right inside Helm, so reviewing an
+  agent's work doesn't mean switching to another tool. Use `[` and `]` to
+  step through the files, and `Esc` to close. It's strictly read-only:
+  Helm never stages, commits, or edits anything.
 
 ## Agent integrations (optional, recommended)
 
@@ -144,6 +158,7 @@ terminal.
 | --- | --- |
 | `c` | New session |
 | `n` / `p` | Next / previous session |
+| `r` | Rename the current session |
 | `1` … `9` | Jump to session 1–9 |
 | `w` | New workspace |
 

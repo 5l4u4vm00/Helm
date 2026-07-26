@@ -124,7 +124,11 @@ export const en: Record<string, string> = {
   "sidebar.removeWorkspace": "Delete workspace and its sessions",
   "sidebar.selectFolder": "Set default folder for new sessions",
   "sidebar.clearFolder": "Clear default folder",
+  "sidebar.folderMissing":
+    "This folder is not reachable right now — new sessions will start in your home directory.",
   "sidebar.close": "Close",
+  "sidebar.renameSession":
+    "Rename (double-click, or F2 / r) — clear the name to go back to the automatic one",
   "sidebar.state.thinking": "Thinking",
   "sidebar.state.tool": "Running",
   "sidebar.state.waiting": "Awaiting approval",
@@ -159,6 +163,29 @@ export const en: Record<string, string> = {
   "files.titleWithCount": "Changed files ({count})",
   "files.empty": "No changes yet",
   "files.close": "Close",
+  "files.openDiff": "Show changes: {path}",
+
+  // Diff viewer
+  "diff.title": "Diff",
+  "diff.baseline": "vs HEAD",
+  "diff.close": "Close",
+  "diff.reload": "Reload",
+  "diff.prev": "Previous file",
+  "diff.next": "Next file",
+  "diff.loading": "Loading diff…",
+  "diff.unchanged": "No changes compared with HEAD",
+  "diff.untracked": "New file — not in git yet",
+  "diff.binary": "Binary file — no text diff to show",
+  "diff.notARepo": "This file is not inside a git repository",
+  "diff.noGit": "git was not found on PATH",
+  "diff.missing": "File not found on disk",
+  "diff.unresolvable": "Could not work out where this file is",
+  "diff.truncatedPath": "This path was cut off and cannot be located",
+  "diff.scanHint": "It was detected from terminal output, so it may be incomplete.",
+  "diff.error": "Could not read the diff",
+  "diff.truncated": "Diff truncated at {size} KB",
+  "diff.renderCapped": "Showing the first {count} lines",
+  "diff.showAll": "Show all",
 
   // Command palette
   "palette.dialogLabel": "Command palette",
@@ -170,6 +197,13 @@ export const en: Record<string, string> = {
   "pane.splitRight": "Split right (right-click to choose agent)",
   "pane.splitDown": "Split down (right-click to choose agent)",
   "pane.close": "Close",
+
+  // Terminal spawn problems (written into the pane itself)
+  "terminal.cwdFailed":
+    "Could not start a shell in {cwd} — starting in your home directory instead.",
+  "terminal.launchSkipped":
+    "{command} was not started automatically, because this is not the folder you asked for. cd where you want it and run it yourself.",
+  "terminal.spawnFailed": "Failed to start a shell for this session.",
 
   // Command categories
   "category.view": "View",
@@ -195,6 +229,7 @@ export const en: Record<string, string> = {
   "command.newSession": "New Session (shell)",
   "command.nextSession": "Next Session",
   "command.prevSession": "Previous Session",
+  "command.renameSession": "Rename Session",
   "command.switchToIndex": "Switch to Session {n}",
   "command.newWorkspace": "New Workspace",
   "command.toggleFiles": "Changed Files Panel",
