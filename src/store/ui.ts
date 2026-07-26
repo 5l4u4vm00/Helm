@@ -7,6 +7,10 @@ export interface DiffTarget extends ChangedFile {
   sessionId: string;
 }
 
+export type SidebarPendingAction =
+  | { kind: "close-session"; id: string }
+  | { kind: "delete-workspace"; id: string };
+
 interface UiState {
   filesOpen: boolean;
   /** Diff overlay target; null when closed. Deliberately independent of
@@ -21,6 +25,8 @@ interface UiState {
   renamingWorkspaceId: string | null;
   // 側欄正在改名的 session id。與上者互斥：同時開兩個編輯框沒有意義。
   renamingSessionId: string | null;
+  /** Destructive sidebar action awaiting inline Enter/Escape confirmation. */
+  sidebarPendingAction: SidebarPendingAction | null;
   toggleFiles: () => void;
   setFilesOpen: (v: boolean) => void;
   toggleSidebar: () => void;
@@ -31,6 +37,7 @@ interface UiState {
   setSettingsOpen: (v: boolean) => void;
   setRenamingWorkspaceId: (id: string | null) => void;
   setRenamingSessionId: (id: string | null) => void;
+  setSidebarPendingAction: (action: SidebarPendingAction | null) => void;
   openDiff: (target: DiffTarget) => void;
   closeDiff: () => void;
 }
@@ -44,6 +51,7 @@ export const useUiStore = create<UiState>((set, get) => ({
   sidebarHidden: false,
   renamingWorkspaceId: null,
   renamingSessionId: null,
+  sidebarPendingAction: null,
   toggleFiles: () => set({ filesOpen: !get().filesOpen }),
   setFilesOpen: (v) => set({ filesOpen: v }),
   toggleSidebar: () => set({ sidebarHidden: !get().sidebarHidden }),
@@ -55,6 +63,7 @@ export const useUiStore = create<UiState>((set, get) => ({
   // 兩個改名旗標互斥：開一個就關掉另一個。
   setRenamingWorkspaceId: (id) => set({ renamingWorkspaceId: id, renamingSessionId: null }),
   setRenamingSessionId: (id) => set({ renamingSessionId: id, renamingWorkspaceId: null }),
+  setSidebarPendingAction: (action) => set({ sidebarPendingAction: action }),
   openDiff: (target) => set({ diffTarget: target }),
   closeDiff: () => set({ diffTarget: null }),
 }));

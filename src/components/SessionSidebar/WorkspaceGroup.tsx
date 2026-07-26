@@ -11,13 +11,15 @@ import type { SplitClusterInfo, Workspace } from "../../store/workspaceGroups";
 import {
   activateFirstPendingApproval,
   newSession,
+  newWorkspace,
   removeWorkspace,
 } from "../../commands/actions";
 import { focusActiveTerminal } from "../../focus/focusUtils";
-import { focusNearestItem, handleListKey } from "../../focus/listNav";
+import { handleListKey } from "../../focus/listNav";
 import { pickFolder } from "../../ipc/dialog";
 import { SessionItem, SIDEBAR_NAV_SELECTOR } from "./SessionItem";
 import { useT } from "../../i18n";
+import { resolveSidebarShortcut } from "./sidebarKeymap";
 
 interface WorkspaceGroupProps {
   workspace: Workspace;
@@ -25,6 +27,7 @@ interface WorkspaceGroupProps {
   activeId: string | null;
   listRef: React.RefObject<HTMLDivElement | null>;
   deletable: boolean;
+  regionEntry: boolean;
 }
 
 // Memoized: rename state is subscribed from the ui store (not passed as
@@ -35,6 +38,7 @@ export const WorkspaceGroup = memo(function WorkspaceGroup({
   activeId,
   listRef,
   deletable,
+  regionEntry,
 }: WorkspaceGroupProps) {
   const t = useT();
   const toggleCollapsed = useWorkspaceStore((s) => s.toggleCollapsed);
@@ -43,8 +47,11 @@ export const WorkspaceGroup = memo(function WorkspaceGroup({
   const moveSessionToWorkspace = useSessionStore((s) => s.moveSessionToWorkspace);
   const renaming = useUiStore((s) => s.renamingWorkspaceId === w.id);
   const setRenamingId = useUiStore((s) => s.setRenamingWorkspaceId);
+  const pendingAction = useUiStore((s) => s.sidebarPendingAction);
+  const setPendingAction = useUiStore((s) => s.setSidebarPendingAction);
   const onRenameStart = () => setRenamingId(w.id);
   const onRenameEnd = () => setRenamingId(null);
+  const confirming = pendingAction?.kind === "delete-workspace" && pendingAction.id === w.id;
   // A persisted folder can be gone by the next launch (unmounted volume,
   // deleted worktree); probe once per path and flag it rather than guessing.
   const probeFolder = useFolderStatusStore((s) => s.probe);
@@ -70,45 +77,57 @@ export const WorkspaceGroup = memo(function WorkspaceGroup({
     onRenameEnd();
   };
 
+  const focusAfterRemoval = (index: number) => {
+    requestAnimationFrame(() => {
+      const items = listRef.current?.querySelectorAll<HTMLElement>(SIDEBAR_NAV_SELECTOR) ?? [];
+      const next = items[Math.min(index, items.length - 1)];
+      if (next) next.focus();
+      else focusActiveTerminal();
+    });
+  };
+
+  const requestDelete = () => {
+    if (deletable) setPendingAction({ kind: "delete-workspace", id: w.id });
+  };
+
   const onHeaderKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (renaming) return;
-    if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault();
-      toggleCollapsed(w.id);
-    } else if (e.key === "h" || e.key === "ArrowLeft") {
-      e.preventDefault();
-      if (!w.collapsed) toggleCollapsed(w.id);
-    } else if (e.key === "l" || e.key === "ArrowRight") {
-      // Tree-view expand: collapsed → open; open → dive into the first row.
-      e.preventDefault();
-      if (w.collapsed) {
-        toggleCollapsed(w.id);
-      } else {
-        e.currentTarget
-          .closest(".workspace-group")
-          ?.querySelector<HTMLElement>(".session-item")
-          ?.focus();
-      }
-    } else if (e.key === "F2" || e.key === "r") {
-      e.preventDefault();
-      onRenameStart();
-    } else if (e.key === "a") {
-      e.preventDefault();
-      addSession();
-    } else if (e.key === "f") {
-      e.preventDefault();
-      void chooseFolder();
-    } else if (e.key === "Escape") {
-      e.preventDefault();
-      focusActiveTerminal();
-    } else if (e.key === "j" || e.key === "ArrowDown" || e.key === "k" || e.key === "ArrowUp") {
-      // The header itself is not a nav item; continue to the nearest session
-      // row below/above it (sessions of collapsed groups aren't rendered, so
-      // they are skipped naturally).
-      const dir = e.key === "j" || e.key === "ArrowDown" ? 1 : -1;
-      if (focusNearestItem(e.currentTarget, listRef.current, SIDEBAR_NAV_SELECTOR, dir)) {
+    if (confirming) {
+      if (e.key === "Enter" || e.key === " ") {
         e.preventDefault();
+        const items = [...(listRef.current?.querySelectorAll<HTMLElement>(SIDEBAR_NAV_SELECTOR) ?? [])];
+        const index = items.indexOf(e.currentTarget);
+        setPendingAction(null);
+        removeWorkspace(w.id);
+        focusAfterRemoval(Math.max(index, 0));
+        return;
       }
+      setPendingAction(null);
+      if (e.key === "Escape") {
+        e.preventDefault();
+        return;
+      }
+    }
+    const action = resolveSidebarShortcut("workspace", e.key);
+    if (action) {
+      e.preventDefault();
+      if (action === "toggle-workspace") toggleCollapsed(w.id);
+      else if (action === "collapse-workspace") {
+        if (!w.collapsed) toggleCollapsed(w.id);
+      } else if (action === "expand-or-enter-workspace") {
+        if (w.collapsed) toggleCollapsed(w.id);
+        else {
+          e.currentTarget
+            .closest(".workspace-group")
+            ?.querySelector<HTMLElement>(".session-item")
+            ?.focus();
+        }
+      } else if (action === "rename") onRenameStart();
+      else if (action === "new-session") addSession();
+      else if (action === "new-workspace") setRenamingId(newWorkspace());
+      else if (action === "choose-folder") void chooseFolder();
+      else if (action === "request-delete") requestDelete();
+      else if (action === "focus-terminal") focusActiveTerminal();
     } else if (handleListKey(e.key, listRef.current, SIDEBAR_NAV_SELECTOR)) {
       e.preventDefault();
     }
@@ -162,12 +181,10 @@ export const WorkspaceGroup = memo(function WorkspaceGroup({
         className="workspace-header"
         role="button"
         tabIndex={-1}
-        // A j/k stop only when it has no visible session rows (collapsed or
-        // empty) — otherwise the workspace would be keyboard-unreachable.
-        data-nav-stop={w.collapsed || sessions.length === 0 ? "true" : undefined}
+        data-region-entry={regionEntry ? "true" : undefined}
         aria-expanded={!w.collapsed}
         onClick={() => {
-          if (!renaming) toggleCollapsed(w.id);
+          if (!renaming && !confirming) toggleCollapsed(w.id);
         }}
         onDoubleClick={() => {
           if (!renaming) onRenameStart();
@@ -175,7 +192,11 @@ export const WorkspaceGroup = memo(function WorkspaceGroup({
         onKeyDown={onHeaderKeyDown}
       >
         <span className="workspace-chevron">{w.collapsed ? "▸" : "▾"}</span>
-        {renaming ? (
+        {confirming ? (
+          <span className="sidebar-inline-confirm">
+            {t("sidebar.confirmDeleteWorkspace", { count: sessions.length })}
+          </span>
+        ) : renaming ? (
           <input
             className="workspace-rename-input"
             defaultValue={w.name}
@@ -237,7 +258,8 @@ export const WorkspaceGroup = memo(function WorkspaceGroup({
             tabIndex={-1}
             onClick={(e) => {
               e.stopPropagation();
-              removeWorkspace(w.id);
+              requestDelete();
+              e.currentTarget.closest<HTMLElement>(".workspace-header")?.focus();
             }}
           >
             ×

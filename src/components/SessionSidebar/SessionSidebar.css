@@ -77,6 +77,14 @@
   text-overflow: ellipsis;
 }
 
+.sidebar-inline-confirm {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: #fab387;
+  font-size: 11px;
+  line-height: 1.3;
+}
+
 .workspace-count {
   flex: 0 0 auto;
   font-size: 10px;
@@ -387,13 +395,82 @@
 }
 
 .sidebar-footer {
+  position: relative;
   flex: 0 0 auto;
   padding: 8px;
   border-top: 1px solid var(--border);
 }
 
+.sidebar-footer-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.sidebar-help-btn {
+  flex: 0 0 auto;
+  width: 30px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.sidebar-help-btn:hover,
+.sidebar-help-btn.on {
+  background: var(--hover);
+  color: var(--fg);
+}
+
+.sidebar-shortcuts {
+  position: absolute;
+  right: 8px;
+  bottom: calc(100% + 6px);
+  z-index: 20;
+  width: 270px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--sidebar-bg);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.sidebar-shortcuts-title,
+.sidebar-shortcuts > div:not(.sidebar-shortcuts-title) {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.sidebar-shortcuts-title {
+  margin-bottom: 6px;
+  color: var(--fg);
+  font-weight: 700;
+}
+
+.sidebar-shortcuts-title span:last-child {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 400;
+}
+
+.sidebar-shortcuts > div:not(.sidebar-shortcuts-title) {
+  padding: 3px 0;
+}
+
+.sidebar-shortcuts kbd {
+  flex: 0 0 auto;
+  color: var(--fg);
+  font-family: inherit;
+  font-size: 10px;
+}
+
 .settings-btn {
-  width: 100%;
+  flex: 1 1 auto;
   border: 1px solid var(--border);
   background: transparent;
   color: var(--muted);

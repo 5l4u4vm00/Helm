@@ -6,18 +6,18 @@
 import { memo } from "react";
 import { useSessionStore } from "../../store/sessions";
 import { useUiStore } from "../../store/ui";
+import { useWorkspaceStore } from "../../store/workspaces";
 import type { SidebarSession } from "../../store/sidebarProjection";
 import type { SplitClusterInfo } from "../../store/workspaceGroups";
-import { activateSession, newSession } from "../../commands/actions";
+import { activateSession, newSession, newWorkspace } from "../../commands/actions";
 import { focusActiveTerminal } from "../../focus/focusUtils";
 import { handleListKey } from "../../focus/listNav";
+import { pickFolder } from "../../ipc/dialog";
 import { useT } from "../../i18n";
+import { resolveSidebarShortcut } from "./sidebarKeymap";
 
-/** Roving-focus targets in the sidebar: session rows, plus workspace
- *  headers that have no visible session rows (collapsed or empty — marked
- *  data-nav-stop) so every workspace stays keyboard-reachable; headers with
- *  visible sessions are skipped by j/k and entered/left via h/l. */
-export const SIDEBAR_NAV_SELECTOR = ".session-item, .workspace-header[data-nav-stop]";
+/** Every visible tree node participates in roving focus. */
+export const SIDEBAR_NAV_SELECTOR = ".session-item, .workspace-header";
 
 // 綜合狀態燈：有 agent 狀態優先，否則用活動狀態。
 function dotClass(s: SidebarSession): string {
@@ -58,8 +58,14 @@ export const SessionItem = memo(function SessionItem({
   // rows whose own state didn't tick — same reasoning as WorkspaceGroup.
   const renaming = useUiStore((x) => x.renamingSessionId === s.id);
   const setRenamingId = useUiStore((x) => x.setRenamingSessionId);
+  const setRenamingWorkspaceId = useUiStore((x) => x.setRenamingWorkspaceId);
+  const pendingAction = useUiStore((x) => x.sidebarPendingAction);
+  const setPendingAction = useUiStore((x) => x.setSidebarPendingAction);
+  const workspaces = useWorkspaceStore((x) => x.workspaces);
+  const setWorkspaceFolder = useWorkspaceStore((x) => x.setWorkspaceFolder);
   const onRenameStart = () => setRenamingId(s.id);
   const onRenameEnd = () => setRenamingId(null);
+  const confirming = pendingAction?.kind === "close-session" && pendingAction.id === s.id;
 
   const commitRename = (value: string) => {
     renameSession(s.id, value);
@@ -72,30 +78,56 @@ export const SessionItem = memo(function SessionItem({
     else if (e.key === "Escape") onRenameEnd();
   };
 
-  const onKeyDown = (e: React.KeyboardEvent) => {
+  const chooseFolder = async () => {
+    const folder = workspaces.find((w) => w.id === s.workspaceId)?.folder;
+    const path = await pickFolder(folder);
+    if (path) setWorkspaceFolder(s.workspaceId, path);
+  };
+
+  const focusAfterRemoval = (index: number) => {
+    requestAnimationFrame(() => {
+      const items = listRef.current?.querySelectorAll<HTMLElement>(SIDEBAR_NAV_SELECTOR) ?? [];
+      const next = items[Math.min(index, items.length - 1)];
+      if (next) next.focus();
+      else focusActiveTerminal();
+    });
+  };
+
+  const requestClose = () => setPendingAction({ kind: "close-session", id: s.id });
+
+  const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (renaming) return;
-    if (e.key === "Enter" || e.key === " ") {
+    if (confirming) {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        const items = [...(listRef.current?.querySelectorAll<HTMLElement>(SIDEBAR_NAV_SELECTOR) ?? [])];
+        const index = items.indexOf(e.currentTarget);
+        setPendingAction(null);
+        closeSession(s.id);
+        focusAfterRemoval(Math.max(index, 0));
+        return;
+      }
+      setPendingAction(null);
+      if (e.key === "Escape") {
+        e.preventDefault();
+        return;
+      }
+    }
+    const action = resolveSidebarShortcut("session", e.key);
+    if (action) {
       e.preventDefault();
-      activateSession(s.id);
-    } else if (e.key === "Delete" || e.key === "Backspace" || e.key === "d") {
-      e.preventDefault();
-      closeSession(s.id);
-    } else if (e.key === "h" || e.key === "ArrowLeft") {
-      // Tree-view collapse direction: jump up to the owning workspace header.
-      e.preventDefault();
-      e.currentTarget
-        .closest(".workspace-group")
-        ?.querySelector<HTMLElement>(".workspace-header")
-        ?.focus();
-    } else if (e.key === "a") {
-      e.preventDefault();
-      newSession(undefined, s.workspaceId);
-    } else if (e.key === "F2" || e.key === "r") {
-      e.preventDefault();
-      onRenameStart();
-    } else if (e.key === "Escape") {
-      e.preventDefault();
-      focusActiveTerminal();
+      if (action === "activate-session") activateSession(s.id);
+      else if (action === "focus-parent") {
+        e.currentTarget
+          .closest(".workspace-group")
+          ?.querySelector<HTMLElement>(".workspace-header")
+          ?.focus();
+      } else if (action === "rename") onRenameStart();
+      else if (action === "new-session") newSession(undefined, s.workspaceId);
+      else if (action === "new-workspace") setRenamingWorkspaceId(newWorkspace());
+      else if (action === "choose-folder") void chooseFolder();
+      else if (action === "request-delete") requestClose();
+      else if (action === "focus-terminal") focusActiveTerminal();
     } else if (handleListKey(e.key, listRef.current, SIDEBAR_NAV_SELECTOR)) {
       e.preventDefault();
     }
@@ -116,10 +148,10 @@ export const SessionItem = memo(function SessionItem({
       data-cluster-pos={clusterPos}
       data-cluster-group={clusterGroupId ?? undefined}
       // A draggable ancestor breaks text selection inside the input in WebKit.
-      draggable={!renaming}
+      draggable={!renaming && !confirming}
       onDragStart={onDragStart}
       onClick={() => {
-        if (!renaming) activateSession(s.id);
+        if (!renaming && !confirming) activateSession(s.id);
       }}
       onDoubleClick={() => {
         if (!renaming) onRenameStart();
@@ -127,7 +159,9 @@ export const SessionItem = memo(function SessionItem({
       onKeyDown={onKeyDown}
     >
       <span className={`status-dot ${cls}`} title={cls in stateLabelKeys ? t(stateLabelKeys[cls]) : ""} />
-      {renaming ? (
+      {confirming ? (
+        <span className="sidebar-inline-confirm">{t("sidebar.confirmClose")}</span>
+      ) : renaming ? (
         <input
           className="session-rename-input"
           defaultValue={s.title}
@@ -148,7 +182,8 @@ export const SessionItem = memo(function SessionItem({
         tabIndex={-1}
         onClick={(e) => {
           e.stopPropagation();
-          closeSession(s.id);
+          requestClose();
+          e.currentTarget.closest<HTMLElement>(".session-item")?.focus();
         }}
       >
         ×
