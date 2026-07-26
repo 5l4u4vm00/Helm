@@ -162,6 +162,12 @@ terminal.
 | `1` … `9` | Jump to session 1–9 |
 | `w` | New workspace |
 
+**Sidebar** — when a workspace header has focus:
+
+| Key | Action |
+| --- | --- |
+| `f` | Set the workspace's default folder |
+
 **Panes & split groups** — after `Ctrl+A`, press:
 
 | Key | Action |

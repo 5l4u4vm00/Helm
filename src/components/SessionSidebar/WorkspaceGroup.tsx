@@ -95,6 +95,9 @@ export const WorkspaceGroup = memo(function WorkspaceGroup({
     } else if (e.key === "a") {
       e.preventDefault();
       addSession();
+    } else if (e.key === "f") {
+      e.preventDefault();
+      void chooseFolder();
     } else if (e.key === "Escape") {
       e.preventDefault();
       focusActiveTerminal();
