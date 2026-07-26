@@ -105,6 +105,19 @@
   gap: 12px;
 }
 
+/* 每個 agent 的統計維持獨立區塊；同時使用 Claude Code 與 Codex 時，
+   Claude 的方案額度不會再取代 Codex 的 context 統計。 */
+.tb-usage-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.tb-usage-group + .tb-usage-group {
+  padding-left: 12px;
+  border-left: 1px solid var(--border);
+}
+
 /* 額度 meter：迷你進度條 + 剩餘 % 文字，data-level 決定顏色。 */
 .tb-meter {
   display: inline-flex;
@@ -215,4 +228,3 @@
 .tb-update-later:hover {
   background: var(--active);
 }
-

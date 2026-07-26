@@ -128,6 +128,11 @@
   color: #11111b;
 }
 
+.approval-actions .answer {
+  background: #89b4fa;
+  color: #11111b;
+}
+
 .approval-actions .reject {
   background: #f38ba8;
   color: #11111b;

@@ -152,11 +152,12 @@ export const en: Record<string, string> = {
   "notifCenter.close": "Close",
 
   // Approval panel
-  "approval.pending": "Pending approval",
+  "approval.pending": "Pending input",
   "approval.approveAll": "Approve all",
   "approval.rejectAll": "Reject all",
   "approval.approve": "Approve",
   "approval.reject": "Reject",
+  "approval.answer": "Answer",
 
   // Changed files panel
   "files.title": "Changed files",

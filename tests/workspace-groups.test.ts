@@ -9,6 +9,7 @@ import {
   nextWorkspaceName,
   normalizeWorkspaces,
   pendingApprovalsInWorkspace,
+  pendingPanelPromptsInWorkspace,
   resolveFocusedWorkspace,
   sessionsInWorkspace,
   workspaceChangedFileCount,
@@ -29,9 +30,31 @@ function ws(id: string, name = id): Workspace {
 function sess(
   id: string,
   workspaceId: string,
-  extra: { pendingApproval?: string; changedFiles?: unknown[] } = {},
+  extra: {
+    pendingApproval?: string;
+    pendingPrompt?: { kind: "question" | "plan"; text: string };
+    changedFiles?: unknown[];
+  } = {},
 ) {
   return { id, workspaceId, ...extra };
+}
+
+// pendingPanelPromptsInWorkspace: approval + question, but not plan
+{
+  const sessions = [
+    sess("s1", "w1", { pendingApproval: "Allow?" }),
+    sess("s2", "w1", { pendingPrompt: { kind: "question", text: "Which option?" } }),
+    sess("s3", "w1", { pendingPrompt: { kind: "plan", text: "Proceed?" } }),
+    sess("s4", "w2", { pendingPrompt: { kind: "question", text: "Other workspace?" } }),
+  ];
+  check(
+    "panel includes approval and question in the workspace",
+    pendingPanelPromptsInWorkspace(sessions, "w1").map((s) => s.id).join(",") === "s1,s2",
+  );
+  check(
+    "panel excludes another workspace's question",
+    pendingPanelPromptsInWorkspace(sessions, "w2").map((s) => s.id).join(",") === "s4",
+  );
 }
 
 // groupSessions: bucketing, empty groups, orphan fallback

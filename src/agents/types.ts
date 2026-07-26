@@ -12,7 +12,7 @@ export type AgentState =
 /**
  * waiting 提示的類型：
  * - "approval"：動作核准選單（進 ApprovalPanel + 通知）。
- * - "question"：agent 的多選項問題（AskUserQuestion 類，只發通知）。
+ * - "question"：agent 的多選項問題（AskUserQuestion 類，進 ApprovalPanel 供導覽 + 通知）。
  * - "plan"：plan 模式的執行確認（只發通知）。
  */
 export type PromptKind = "approval" | "question" | "plan";

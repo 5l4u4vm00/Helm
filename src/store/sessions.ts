@@ -39,8 +39,8 @@ export interface Session {
   agentLabel?: string;
   agentState?: AgentState;
   pendingApproval?: string; // waiting（kind = approval）時的提示行，進 ApprovalPanel
-  // waiting 且 kind 為 question/plan 時的提示：只發桌面通知，不進 ApprovalPanel
-  //（誤按 Approve 會隨便選中第一個選項）。
+  // waiting 且 kind 為 question/plan 時的提示：question 進 ApprovalPanel 供導覽，
+  // plan 只發桌面通知（兩者都不顯示 Approve，避免隨便選中第一個選項）。
   pendingPrompt?: { kind: "question" | "plan"; text: string };
   launchCommand?: string; // 啟動時送進 PTY 的指令
   // ---- 本次執行的用量/變更（不持久化，重跑歸零）----

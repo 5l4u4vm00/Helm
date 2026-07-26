@@ -169,11 +169,11 @@ export function Toolbar() {
 
       {(showPlan || active?.agentId) && (
         <div className="tb-usage">
-          {active?.agentId && (
-            <span className="tb-agent">{active.agentLabel ?? t("toolbar.defaultAgent")}</span>
-          )}
-          {showPlan ? (
-            <>
+          {/* Claude Code 的方案額度屬於帳號，不應遮住目前 pane（例如 Codex）的
+              session 統計。兩者各自成組，並排顯示。 */}
+          {showPlan && (
+            <div className="tb-usage-group">
+              <span className="tb-agent">Claude Code</span>
               {planUsage!.fiveHourLeftPercent !== undefined && (
                 <UsageMeter
                   text={t("toolbar.planUsage5h", {
@@ -194,18 +194,22 @@ export function Toolbar() {
                   t={t}
                 />
               )}
-            </>
-          ) : active?.agentId ? (
-            active.contextLeftPercent !== undefined ? (
-              <span className="tb-mono" title={t("toolbar.contextLeft")}>
-                {t("toolbar.contextLeftValue", { percent: active.contextLeftPercent })}
-              </span>
-            ) : (
-              <span className="tb-mono" title={t("toolbar.tokens")}>
-                ↑{fmtNum(active.tokensIn)} ↓{fmtNum(active.tokensOut)}
-              </span>
-            )
-          ) : null}
+            </div>
+          )}
+          {active?.agentId && (
+            <div className="tb-usage-group">
+              <span className="tb-agent">{active.agentLabel ?? t("toolbar.defaultAgent")}</span>
+              {active.contextLeftPercent !== undefined ? (
+                <span className="tb-mono" title={t("toolbar.contextLeft")}>
+                  {t("toolbar.contextLeftValue", { percent: active.contextLeftPercent })}
+                </span>
+              ) : (
+                <span className="tb-mono" title={t("toolbar.tokens")}>
+                  ↑{fmtNum(active.tokensIn)} ↓{fmtNum(active.tokensOut)}
+                </span>
+              )}
+            </div>
+          )}
         </div>
       )}
       <button

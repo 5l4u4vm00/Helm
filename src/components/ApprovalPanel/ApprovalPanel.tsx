@@ -12,7 +12,7 @@ import {
 import { focusActiveTerminal } from "../../focus/focusUtils";
 import { useSessionStore } from "../../store/sessions";
 import {
-  pendingApprovalsInWorkspace,
+  pendingPanelPromptsInWorkspace,
   resolveFocusedWorkspace,
 } from "../../store/workspaceGroups";
 import { useT } from "../../i18n";
@@ -24,10 +24,11 @@ export function ApprovalPanel() {
   // usage/state tick（PTY 輸出頻率）不會重繪整個面板。
   const pending = useSessionStore(
     useShallow((s) =>
-      pendingApprovalsInWorkspace(s.sessions, resolveFocusedWorkspace(s.sessions, s.activeId)),
+      pendingPanelPromptsInWorkspace(s.sessions, resolveFocusedWorkspace(s.sessions, s.activeId)),
     ),
   );
   if (pending.length === 0) return null;
+  const approvals = pending.filter((s) => Boolean(s.pendingApproval));
 
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Escape") {
@@ -47,7 +48,7 @@ export function ApprovalPanel() {
     <div className="approval-panel" data-focus-region="approvals" onKeyDown={onKeyDown}>
       <div className="approval-header">
         {t("approval.pending")} <span className="approval-count">{pending.length}</span>
-        {pending.length > 1 && (
+        {approvals.length > 1 && (
           <span className="approval-batch">
             <button className="batch approve" onClick={() => respondAllApprovals(true)}>
               {t("approval.approveAll")}
@@ -71,22 +72,30 @@ export function ApprovalPanel() {
               <span className="approval-agent">{s.agentLabel ?? t("toolbar.defaultAgent")}</span>
               <span className="approval-session">{s.title}</span>
             </div>
-            <div className="approval-prompt" title={s.pendingApproval}>
-              {s.pendingApproval}
+            <div className="approval-prompt" title={s.pendingApproval ?? s.pendingPrompt?.text}>
+              {s.pendingApproval ?? s.pendingPrompt?.text}
             </div>
             <div className="approval-actions">
-              <button
-                className="approve"
-                onClick={() => respondApproval(s.id, s.agentId, true)}
-              >
-                {t("approval.approve")}
-              </button>
-              <button
-                className="reject"
-                onClick={() => respondApproval(s.id, s.agentId, false)}
-              >
-                {t("approval.reject")}
-              </button>
+              {s.pendingApproval ? (
+                <>
+                  <button
+                    className="approve"
+                    onClick={() => respondApproval(s.id, s.agentId, true)}
+                  >
+                    {t("approval.approve")}
+                  </button>
+                  <button
+                    className="reject"
+                    onClick={() => respondApproval(s.id, s.agentId, false)}
+                  >
+                    {t("approval.reject")}
+                  </button>
+                </>
+              ) : (
+                <button className="answer" onClick={() => activateSession(s.id)}>
+                  {t("approval.answer")}
+                </button>
+              )}
             </div>
           </div>
         ))}
