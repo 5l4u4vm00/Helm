@@ -151,7 +151,9 @@ fn build_menu(app: &AppHandle, language: &str) -> tauri::Result<Menu<tauri::Wry>
         .build()?;
 
     let shortcuts = item("help:shortcuts", l.shortcuts, "?")?;
-    let help_menu = SubmenuBuilder::new(app, l.help).items(&[&shortcuts]).build()?;
+    let help_menu = SubmenuBuilder::new(app, l.help)
+        .items(&[&shortcuts])
+        .build()?;
 
     let menu = Menu::default(app)?;
     menu.append(&session_menu)?;
