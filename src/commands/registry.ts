@@ -205,6 +205,13 @@ function staticCommands(): Command[] {
       run: () => useUiStore.getState().toggleFiles(),
     },
     {
+      id: "view:toggle-notifications",
+      title: t("command.toggleNotifications"),
+      category: t("category.view"),
+      keywords: "notifications alerts bell center",
+      run: () => useUiStore.getState().toggleNotifications(),
+    },
+    {
       id: "view:toggle-sidebar",
       title: t("command.toggleSidebar"),
       category: t("category.view"),
@@ -289,6 +296,16 @@ function staticCommands(): Command[] {
       category: t("category.view"),
       keywords: "focus sidebar sessions list",
       run: focusSidebar,
+    },
+    {
+      id: "help:shortcuts",
+      title: t("command.shortcutsHelp"),
+      category: t("category.view"),
+      keywords: "keyboard shortcuts help keys reference cheatsheet",
+      run: () => {
+        const ui = useUiStore.getState();
+        ui.setShortcutsOpen(!ui.shortcutsOpen);
+      },
     },
     {
       // Keyboard-only escape hatch (C-a a): meaningless as a mouse action.

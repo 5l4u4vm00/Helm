@@ -28,8 +28,16 @@ struct MenuLabels {
     view: &'static str,
     palette: &'static str,
     toggle_files: &'static str,
+    toggle_notifications: &'static str,
     toggle_sidebar: &'static str,
     toggle_theme: &'static str,
+    approval: &'static str,
+    approve_active: &'static str,
+    reject_active: &'static str,
+    approve_all: &'static str,
+    reject_all: &'static str,
+    help: &'static str,
+    shortcuts: &'static str,
 }
 
 const LABELS_ZH_TW: MenuLabels = MenuLabels {
@@ -45,8 +53,16 @@ const LABELS_ZH_TW: MenuLabels = MenuLabels {
     view: "檢視",
     palette: "命令面板",
     toggle_files: "檔案變更面板",
+    toggle_notifications: "通知中心",
     toggle_sidebar: "切換側欄",
     toggle_theme: "切換主題",
+    approval: "審批",
+    approve_active: "批准目前 Session",
+    reject_active: "拒絕目前 Session",
+    approve_all: "全部批准（此 Workspace）",
+    reject_all: "全部拒絕（此 Workspace）",
+    help: "說明",
+    shortcuts: "鍵盤快捷鍵",
 };
 
 const LABELS_EN: MenuLabels = MenuLabels {
@@ -62,8 +78,16 @@ const LABELS_EN: MenuLabels = MenuLabels {
     view: "View",
     palette: "Command Palette",
     toggle_files: "Changed Files Panel",
+    toggle_notifications: "Notifications",
     toggle_sidebar: "Toggle Sidebar",
     toggle_theme: "Toggle Theme",
+    approval: "Approvals",
+    approve_active: "Approve Current Session",
+    reject_active: "Reject Current Session",
+    approve_all: "Approve All (This Workspace)",
+    reject_all: "Reject All (This Workspace)",
+    help: "Help",
+    shortcuts: "Keyboard Shortcuts",
 };
 
 fn labels_for(language: &str) -> &'static MenuLabels {
@@ -105,16 +129,36 @@ fn build_menu(app: &AppHandle, language: &str) -> tauri::Result<Menu<tauri::Wry>
         .accelerator("CmdOrCtrl+Shift+P")
         .build(app)?;
     let toggle_files = item("view:toggle-files", l.toggle_files, "f")?;
+    let toggle_notifications = item("view:toggle-notifications", l.toggle_notifications, "b")?;
     let toggle_sidebar = item("view:toggle-sidebar", l.toggle_sidebar, "e")?;
     let toggle_theme = item("theme:toggle", l.toggle_theme, "t")?;
     let view_menu = SubmenuBuilder::new(app, l.view)
-        .items(&[&palette, &toggle_files, &toggle_sidebar, &toggle_theme])
+        .items(&[
+            &palette,
+            &toggle_files,
+            &toggle_notifications,
+            &toggle_sidebar,
+            &toggle_theme,
+        ])
         .build()?;
+
+    let approve_active = item("approval:approve-active", l.approve_active, "y")?;
+    let reject_active = item("approval:reject-active", l.reject_active, "N")?;
+    let approve_all = item("approval:approve-all", l.approve_all, "Ctrl+y")?;
+    let reject_all = item("approval:reject-all", l.reject_all, "Ctrl+n")?;
+    let approval_menu = SubmenuBuilder::new(app, l.approval)
+        .items(&[&approve_active, &reject_active, &approve_all, &reject_all])
+        .build()?;
+
+    let shortcuts = item("help:shortcuts", l.shortcuts, "?")?;
+    let help_menu = SubmenuBuilder::new(app, l.help).items(&[&shortcuts]).build()?;
 
     let menu = Menu::default(app)?;
     menu.append(&session_menu)?;
     menu.append(&layout_menu)?;
     menu.append(&view_menu)?;
+    menu.append(&approval_menu)?;
+    menu.append(&help_menu)?;
     Ok(menu)
 }
 
@@ -156,11 +200,9 @@ pub fn run() {
             app.set_menu(menu)?;
             app.on_menu_event(|app, event| {
                 let id = event.id().as_ref();
-                // 只轉發自家命令 id，避免 macOS 預設選單項誤觸發。
-                const PREFIXES: [&str; 6] = [
-                    "layout:", "session:", "view:", "theme:", "palette:", "focus:",
-                ];
-                if PREFIXES.iter().any(|p| id.starts_with(p)) {
+                // 只轉發自家命令 id（一律含冒號的 namespace:action 形式），
+                // 避免 macOS 預設選單項誤觸發；新增命名空間不必再改這裡。
+                if id.contains(':') {
                     let _ = app.emit("app://shortcut", id);
                 }
             });

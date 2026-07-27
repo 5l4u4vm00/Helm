@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "test": "node --experimental-strip-types --test \"tests/**/*.test.ts\"",
+    "docs:shortcuts": "node --experimental-strip-types scripts/gen-shortcut-docs.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint ."
   },

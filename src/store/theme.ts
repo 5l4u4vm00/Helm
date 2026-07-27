@@ -179,7 +179,11 @@ export function resolveXtermTheme(
 
 /** 自訂主題的 UI 變數 → inline style（App.css 不需要 [data-theme="custom"] 區塊）。 */
 export function customCssVars(theme: CustomTheme): CSSProperties {
-  const style: Record<string, string> = { colorScheme: theme.colorScheme };
+  const style: Record<string, string> = {
+    colorScheme: theme.colorScheme,
+    // 背景圖遮罩的色相：淺色主題用白遮罩沖淡，深色用黑（同 App.css 內建主題）。
+    "--app-bg-tint": theme.colorScheme === "light" ? "255, 255, 255" : "0, 0, 0",
+  };
   for (const [key, cssVar] of Object.entries(UI_COLOR_VARS)) {
     style[cssVar] = theme.ui[key as UiColorKey];
   }

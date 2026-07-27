@@ -4,7 +4,7 @@
 // and arming/disarming (timeout, Esc, blur) lives in the prefix store.
 import { useMemo } from "react";
 import { usePrefixStore } from "../../store/prefix";
-import { DIGITS_LABEL, whichKeyHints } from "../../commands/prefix";
+import { DIGITS_LABEL, prefixKeyLabel, whichKeyHints } from "../../commands/prefix";
 import { listCommands } from "../../commands/registry";
 import { useT } from "../../i18n";
 import "./WhichKey.css";
@@ -68,7 +68,7 @@ function WhichKeyPanel() {
         ))}
       </div>
       <div className="whichkey-footer">
-        <span className="whichkey-prefix">{t("whichKey.title")}</span>
+        <span className="whichkey-prefix">{prefixKeyLabel(IS_MAC)}</span>
         <span>{t("whichKey.hint")}</span>
       </div>
     </div>

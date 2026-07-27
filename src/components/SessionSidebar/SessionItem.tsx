@@ -11,7 +11,7 @@ import type { SidebarSession } from "../../store/sidebarProjection";
 import type { SplitClusterInfo } from "../../store/workspaceGroups";
 import { activateSession, newSession, newWorkspace } from "../../commands/actions";
 import { focusActiveTerminal } from "../../focus/focusUtils";
-import { handleListKey } from "../../focus/listNav";
+import { handleListKey, hasNonShiftModifier } from "../../focus/listNav";
 import { pickFolder } from "../../ipc/dialog";
 import { useT } from "../../i18n";
 import { resolveSidebarShortcut } from "./sidebarKeymap";
@@ -97,9 +97,12 @@ export const SessionItem = memo(function SessionItem({
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (renaming) return;
+    // A pending confirmation captures the next key: confirm, cancel, or
+    // cancel-and-swallow. Same rule as the armed prefix — a key that cancels
+    // must not also run its own action.
     if (confirming) {
+      e.preventDefault();
       if (e.key === "Enter" || e.key === " ") {
-        e.preventDefault();
         const items = [...(listRef.current?.querySelectorAll<HTMLElement>(SIDEBAR_NAV_SELECTOR) ?? [])];
         const index = items.indexOf(e.currentTarget);
         setPendingAction(null);
@@ -108,12 +111,9 @@ export const SessionItem = memo(function SessionItem({
         return;
       }
       setPendingAction(null);
-      if (e.key === "Escape") {
-        e.preventDefault();
-        return;
-      }
+      return;
     }
-    const action = resolveSidebarShortcut("session", e.key);
+    const action = resolveSidebarShortcut("session", e);
     if (action) {
       e.preventDefault();
       if (action === "activate-session") activateSession(s.id);
@@ -128,7 +128,10 @@ export const SessionItem = memo(function SessionItem({
       else if (action === "choose-folder") void chooseFolder();
       else if (action === "request-delete") requestClose();
       else if (action === "focus-terminal") focusActiveTerminal();
-    } else if (handleListKey(e.key, listRef.current, SIDEBAR_NAV_SELECTOR)) {
+    } else if (
+      !hasNonShiftModifier(e) &&
+      handleListKey(e.key, listRef.current, SIDEBAR_NAV_SELECTOR)
+    ) {
       e.preventDefault();
     }
   };

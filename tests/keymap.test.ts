@@ -85,7 +85,8 @@ function ev(partial: Partial<KeyEventLike>): KeyEventLike {
     'prefix 委派 ⌃A "',
     shortcutLabel("layout:split-down", true) === '⌃A "',
   );
-  check("無綁定 → undefined", shortcutLabel("approval:approve-all", false) === undefined);
+  // 每個靜態命令現在都有綁定，只有動態（palette 專用）命令沒有。
+  check("無綁定 → undefined", shortcutLabel("session:switch:abc123", false) === undefined);
 }
 
 console.log(`\nkeymap: ${passed} checks passed`);

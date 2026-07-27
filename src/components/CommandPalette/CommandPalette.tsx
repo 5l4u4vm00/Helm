@@ -7,7 +7,7 @@ import { useUiStore } from "../../store/ui";
 import { listCommands, runCommand } from "../../commands/registry";
 import { filterCommands } from "../../commands/filter";
 import { shortcutLabel } from "../../commands/keymap";
-import { focusActiveTerminal, trapTabKey } from "../../focus/focusUtils";
+import { focusActiveTerminal, handleDismissKey, trapTabKey } from "../../focus/focusUtils";
 import type { Command } from "../../commands/types";
 import { useT } from "../../i18n";
 import "./CommandPalette.css";
@@ -65,10 +65,8 @@ function PaletteDialog() {
   };
 
   const onKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Escape") {
-      e.preventDefault();
-      e.stopPropagation();
-      close();
+    if (handleDismissKey(e, close)) {
+      return;
     } else if (e.key === "ArrowDown" && results.length > 0) {
       e.preventDefault();
       setSelected((sel + 1) % results.length);

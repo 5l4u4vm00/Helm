@@ -9,7 +9,7 @@ import {
   respondAllApprovals,
   respondApproval,
 } from "../../commands/actions";
-import { focusActiveTerminal } from "../../focus/focusUtils";
+import { focusActiveTerminal, handleDismissKey } from "../../focus/focusUtils";
 import { useSessionStore } from "../../store/sessions";
 import {
   pendingPanelPromptsInWorkspace,
@@ -30,11 +30,9 @@ export function ApprovalPanel() {
   if (pending.length === 0) return null;
   const approvals = pending.filter((s) => Boolean(s.pendingApproval));
 
+  // Escape only leaves the panel: it stays visible while approvals are pending.
   const onKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Escape") {
-      e.preventDefault();
-      focusActiveTerminal();
-    }
+    handleDismissKey(e, focusActiveTerminal);
   };
 
   const onMetaKeyDown = (e: React.KeyboardEvent, id: string) => {

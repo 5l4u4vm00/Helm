@@ -1,6 +1,22 @@
 // Roving focus for vertical lists / menus, driven by the live DOM
 // (no index state to keep in sync with dynamic lists).
 
+/** Subset of KeyboardEvent the region-layer guard needs (keeps this DOM-free). */
+export interface ModifierStateLike {
+  ctrlKey?: boolean;
+  altKey?: boolean;
+  metaKey?: boolean;
+}
+
+/**
+ * Region-layer rule: bare keys only. A row/list action must never fire from
+ * Ctrl+j, Alt+f or Cmd+x — those belong to the global layer or the OS. Shift
+ * stays allowed because some keys encode it in the character itself ('G').
+ */
+export function hasNonShiftModifier(e: ModifierStateLike): boolean {
+  return Boolean(e.ctrlKey || e.altKey || e.metaKey);
+}
+
 /** Vim aliases (list items are never text inputs, so always active). */
 const VIM_ALIASES: Record<string, string> = {
   j: "ArrowDown",

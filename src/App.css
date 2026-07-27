@@ -46,12 +46,13 @@ body {
   z-index: 0;
   pointer-events: none;
 }
-/* 可讀性遮罩：強度由設定的 dim slider 提供。 */
+/* 可讀性遮罩：強度由設定的 dim slider 提供，色相跟著主題明暗走（--app-bg-tint）
+   —— 淺色主題要的是把背景圖沖淡，用黑遮罩會讓透明的終端底變得比主題還暗。 */
 .app[data-bg-image="true"]::after {
   content: "";
   position: absolute;
   inset: 0;
-  background: rgba(0, 0, 0, var(--app-bg-dim, 0.4));
+  background: rgba(var(--app-bg-tint, 0, 0, 0), var(--app-bg-dim, 0.4));
   z-index: 0;
   pointer-events: none;
 }
@@ -68,11 +69,16 @@ body {
 .app[data-bg-image="true"] .pane-label {
   background: color-mix(in srgb, var(--sidebar-bg) 68%, transparent);
 }
-/* chrome 疊在背景層之上。 */
+/* chrome 疊在背景層之上。側欄再高一層，讓它的浮動面板能蓋在終端區上方
+   （仍低於 z-index 100 的 fixed 對話框／WhichKey）。 */
 .app > .sidebar,
 .app > .app-body {
   position: relative;
   z-index: 1;
+}
+
+.app > .sidebar {
+  z-index: 2;
 }
 
 /* 深色主題（預設） */
@@ -100,6 +106,7 @@ body {
   --hover: #dce0e8;
   --active: #ccd0da;
   --accent: #1e66f5;
+  --app-bg-tint: 255, 255, 255;
   color-scheme: light;
 }
 
@@ -212,6 +219,7 @@ body {
   --hover: #eaeef2;
   --active: #d0d7de;
   --accent: #0969da;
+  --app-bg-tint: 255, 255, 255;
   color-scheme: light;
 }
 

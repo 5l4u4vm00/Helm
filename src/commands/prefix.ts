@@ -48,12 +48,18 @@ export const PREFIX_TABLE: PrefixBinding[] = [
   { key: "w", commandId: "workspace:new" },
   { key: "f", commandId: "view:toggle-files" },
   { key: "e", commandId: "view:toggle-sidebar" },
+  { key: "b", commandId: "view:toggle-notifications" },
   { key: "t", commandId: "theme:toggle" },
   { key: "s", commandId: "settings:open" },
   { key: "y", commandId: "approval:approve-active" },
   { key: "N", commandId: "approval:reject-active" },
+  // Ctrl on the second key = the workspace-wide variant of the same action.
+  { key: "y", ctrl: true, commandId: "approval:approve-all" },
+  { key: "n", ctrl: true, commandId: "approval:reject-all" },
   { key: "Tab", commandId: "focus:cycle-region" },
   { key: "Tab", shift: true, commandId: "focus:cycle-region-back" },
+  { key: "i", commandId: "focus:terminal" },
+  { key: "?", commandId: "help:shortcuts" },
   // screen-style literal passthrough: C-a a / C-a C-a → 0x01 to the PTY.
   { key: "a", commandId: "terminal:send-prefix" },
   { key: "a", ctrl: true, commandId: "terminal:send-prefix" },
@@ -123,11 +129,16 @@ function secondKeyLabel(b: PrefixBinding, isMac: boolean): string {
   return `${ctrl}${shift}${base}`;
 }
 
+/** The prefix itself, platform-formatted ("⌃A" / "Ctrl+A"). */
+export function prefixKeyLabel(isMac: boolean): string {
+  return isMac ? "⌃A" : "Ctrl+A";
+}
+
 /** Human-readable sequence for a command ("⌃A %" / "Ctrl+A %"). */
 export function prefixLabel(commandId: string, isMac: boolean): string | undefined {
   const b = PREFIX_TABLE.find((x) => x.commandId === commandId);
   if (!b) return undefined;
-  return `${isMac ? "⌃A" : "Ctrl+A"} ${secondKeyLabel(b, isMac)}`;
+  return `${prefixKeyLabel(isMac)} ${secondKeyLabel(b, isMac)}`;
 }
 
 export interface WhichKeyHint {

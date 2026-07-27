@@ -3,7 +3,7 @@
 // 自己的「+」launcher 負責（見 WorkspaceGroup）。session 可拖曳到其他 workspace。
 // Keyboard: roving focus over headers + items (arrows / Enter / Delete / F2),
 // Esc back to the terminal; the launcher menu is fully arrow-navigable.
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useRef } from "react";
 import { useSessionStore } from "../../store/sessions";
 import { projectSidebarSessions } from "../../store/sidebarProjection";
 import { useWorkspaceStore } from "../../store/workspaces";
@@ -12,6 +12,7 @@ import { useLayoutStore } from "../../store/layout";
 import { findTreeBySession } from "../../store/layoutTree";
 import { useUiStore } from "../../store/ui";
 import { newWorkspace } from "../../commands/actions";
+import { runCommand } from "../../commands/registry";
 import { WorkspaceGroup } from "./WorkspaceGroup";
 import { useT } from "../../i18n";
 import "./SessionSidebar.css";
@@ -27,10 +28,8 @@ export function SessionSidebar() {
   const settingsOpen = useUiStore((s) => s.settingsOpen);
   const setSettingsOpen = useUiStore((s) => s.setSettingsOpen);
   const setSidebarHidden = useUiStore((s) => s.setSidebarHidden);
+  const shortcutsOpen = useUiStore((s) => s.shortcutsOpen);
   const listRef = useRef<HTMLDivElement>(null);
-  const helpButtonRef = useRef<HTMLButtonElement>(null);
-  const helpPanelRef = useRef<HTMLDivElement>(null);
-  const [helpOpen, setHelpOpen] = useState(false);
 
   const groups = useMemo(() => {
     const groupIdOf = (id: string) => findTreeBySession(trees, id);
@@ -79,49 +78,12 @@ export function SessionSidebar() {
       </div>
 
       <div className="sidebar-footer">
-        {helpOpen && (
-          <div
-            id="sidebar-shortcuts"
-            className="sidebar-shortcuts"
-            role="dialog"
-            tabIndex={-1}
-            ref={helpPanelRef}
-            aria-label={t("sidebar.shortcutsTitle")}
-            onKeyDown={(e) => {
-              if (e.key === "Escape") {
-                e.preventDefault();
-                setHelpOpen(false);
-                requestAnimationFrame(() => helpButtonRef.current?.focus());
-              }
-            }}
-          >
-            <div className="sidebar-shortcuts-title">
-              <span>{t("sidebar.shortcutsTitle")}</span>
-              <span>{t("sidebar.shortcutsDismiss")}</span>
-            </div>
-            <div><kbd>Ctrl+A g</kbd><span>{t("sidebar.shortcutFocus")}</span></div>
-            <div><kbd>j/k · ↑/↓ · g/G</kbd><span>{t("sidebar.shortcutNavigate")}</span></div>
-            <div><kbd>h/l · ←/→</kbd><span>{t("sidebar.shortcutTree")}</span></div>
-            <div><kbd>Enter · Space</kbd><span>{t("sidebar.shortcutOpen")}</span></div>
-            <div><kbd>r · F2 · a · A · f</kbd><span>{t("sidebar.shortcutManage")}</span></div>
-            <div><kbd>Delete · Enter · Esc</kbd><span>{t("sidebar.shortcutDelete")}</span></div>
-          </div>
-        )}
         <div className="sidebar-footer-actions">
           <button
-            ref={helpButtonRef}
-            className={`sidebar-help-btn ${helpOpen ? "on" : ""}`}
-            aria-expanded={helpOpen}
-            aria-controls="sidebar-shortcuts"
-            title={t("sidebar.shortcutsTitle")}
-            onClick={() => {
-              if (helpOpen) {
-                setHelpOpen(false);
-              } else {
-                setHelpOpen(true);
-                requestAnimationFrame(() => helpPanelRef.current?.focus());
-              }
-            }}
+            className={`sidebar-help-btn ${shortcutsOpen ? "on" : ""}`}
+            aria-pressed={shortcutsOpen}
+            title={t("shortcut.title")}
+            onClick={() => runCommand("help:shortcuts")}
           >
             ?
           </button>

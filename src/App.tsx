@@ -36,7 +36,8 @@ import { computeLayout, type RectPct } from "./store/layoutTree";
 import { useUiStore } from "./store/ui";
 import { useFolderStatusStore } from "./store/folderStatus";
 import { matchBinding } from "./commands/keymap";
-import { resolvePrefixInput } from "./commands/prefix";
+import { isTextEntryElement } from "./commands/keyTarget";
+import { isPrefixKey, resolvePrefixInput } from "./commands/prefix";
 import { usePrefixStore } from "./store/prefix";
 import { WhichKey } from "./components/WhichKey/WhichKey";
 import { runCommand } from "./commands/registry";
@@ -91,15 +92,23 @@ const DiffViewer = lazy(() =>
   })),
 );
 
+const ShortcutsHelp = lazy(() =>
+  import("./components/ShortcutsHelp/ShortcutsHelp").then((m) => ({
+    default: m.ShortcutsHelp,
+  })),
+);
+
 function LazyOverlays() {
   const paletteOpen = useUiStore((s) => s.paletteOpen);
   const settingsOpen = useUiStore((s) => s.settingsOpen);
   const diffOpen = useUiStore((s) => s.diffTarget !== null);
+  const shortcutsOpen = useUiStore((s) => s.shortcutsOpen);
   return (
     <Suspense fallback={null}>
       {paletteOpen && <CommandPalette />}
       {settingsOpen && <SettingsDialog />}
       {diffOpen && <DiffViewer />}
+      {shortcutsOpen && <ShortcutsHelp />}
     </Suspense>
   );
 }
@@ -397,6 +406,12 @@ function App() {
     const onKey = (e: KeyboardEvent) => {
       if (e.isComposing) return; // IME 組字中不介入
       const { armed, arm, disarm } = usePrefixStore.getState();
+      // 文字輸入框裡 Ctrl+A 是全選：不武裝前綴，放行給瀏覽器（capture phase
+      // 先跑，輸入框自己的 stopPropagation 救不了）。只擋 arm——武裝後的第二鍵
+      // 與 KEYMAP 的 ⌘⇧P 都不是文字編輯鍵，照舊生效。
+      if (!armed && isPrefixKey(e) && isTextEntryElement(e.target)) {
+        return;
+      }
       const action = resolvePrefixInput(armed, e);
       if (action.type !== "pass") {
         e.preventDefault();

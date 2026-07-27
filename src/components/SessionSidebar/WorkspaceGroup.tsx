@@ -15,7 +15,7 @@ import {
   removeWorkspace,
 } from "../../commands/actions";
 import { focusActiveTerminal } from "../../focus/focusUtils";
-import { handleListKey } from "../../focus/listNav";
+import { handleListKey, hasNonShiftModifier } from "../../focus/listNav";
 import { pickFolder } from "../../ipc/dialog";
 import { SessionItem, SIDEBAR_NAV_SELECTOR } from "./SessionItem";
 import { useT } from "../../i18n";
@@ -92,9 +92,10 @@ export const WorkspaceGroup = memo(function WorkspaceGroup({
 
   const onHeaderKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (renaming) return;
+    // A pending confirmation captures the next key (see SessionItem).
     if (confirming) {
+      e.preventDefault();
       if (e.key === "Enter" || e.key === " ") {
-        e.preventDefault();
         const items = [...(listRef.current?.querySelectorAll<HTMLElement>(SIDEBAR_NAV_SELECTOR) ?? [])];
         const index = items.indexOf(e.currentTarget);
         setPendingAction(null);
@@ -103,12 +104,9 @@ export const WorkspaceGroup = memo(function WorkspaceGroup({
         return;
       }
       setPendingAction(null);
-      if (e.key === "Escape") {
-        e.preventDefault();
-        return;
-      }
+      return;
     }
-    const action = resolveSidebarShortcut("workspace", e.key);
+    const action = resolveSidebarShortcut("workspace", e);
     if (action) {
       e.preventDefault();
       if (action === "toggle-workspace") toggleCollapsed(w.id);
@@ -128,7 +126,10 @@ export const WorkspaceGroup = memo(function WorkspaceGroup({
       else if (action === "choose-folder") void chooseFolder();
       else if (action === "request-delete") requestDelete();
       else if (action === "focus-terminal") focusActiveTerminal();
-    } else if (handleListKey(e.key, listRef.current, SIDEBAR_NAV_SELECTOR)) {
+    } else if (
+      !hasNonShiftModifier(e) &&
+      handleListKey(e.key, listRef.current, SIDEBAR_NAV_SELECTOR)
+    ) {
       e.preventDefault();
     }
   };

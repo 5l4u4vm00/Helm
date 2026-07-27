@@ -6,7 +6,8 @@ import { useSessionStore, type Session } from "../../store/sessions";
 import { useLayoutStore } from "../../store/layout";
 import type { SplitDir } from "../../store/layoutTree";
 import { listLaunchers } from "../../agents/registry";
-import { handleListKey } from "../../focus/listNav";
+import { handleListKey, hasNonShiftModifier } from "../../focus/listNav";
+import { handleDismissKey } from "../../focus/focusUtils";
 import type { AgentLauncher } from "../../agents/types";
 import { useT } from "../../i18n";
 import "./PaneLabel.css";
@@ -57,13 +58,9 @@ export const PaneLabel = memo(function PaneLabel({ session }: { session: Session
   };
 
   const onMenuKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Escape") {
-      e.preventDefault();
-      e.stopPropagation();
-      closeMenu(true);
-    } else if (handleListKey(e.key, menuRef.current, "button")) {
-      e.preventDefault();
-    }
+    if (handleDismissKey(e, () => closeMenu(true))) return;
+    if (hasNonShiftModifier(e)) return; // region layer: bare keys only
+    if (handleListKey(e.key, menuRef.current, "button")) e.preventDefault();
   };
 
   const splitButton = (dir: SplitDir, icon: string, title: string) => (

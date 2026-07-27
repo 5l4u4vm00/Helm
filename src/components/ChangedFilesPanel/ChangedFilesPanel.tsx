@@ -10,8 +10,8 @@ import {
   sessionsInWorkspace,
   workspaceChangedFileCount,
 } from "../../store/workspaceGroups";
-import { focusActiveTerminal } from "../../focus/focusUtils";
-import { handleListKey } from "../../focus/listNav";
+import { focusActiveTerminal, handleDismissKey } from "../../focus/focusUtils";
+import { handleListKey, hasNonShiftModifier } from "../../focus/listNav";
 import type { ChangedFile } from "../../agents/extract";
 import { useT } from "../../i18n";
 import "./ChangedFilesPanel.css";
@@ -23,6 +23,7 @@ const SessionFileGroup = memo(function SessionFileGroup({ session }: { session: 
   const files = session.changedFiles ?? [];
 
   const onRowKey = (e: React.KeyboardEvent, file: ChangedFile) => {
+    if (hasNonShiftModifier(e)) return; // region layer: bare keys only
     if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
       useUiStore.getState().openDiff({ ...file, sessionId: session.id });
@@ -92,11 +93,10 @@ function ChangedFilesPanelContent() {
   const onClose = () => setFilesOpen(false);
 
   const onKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Escape") {
-      e.preventDefault();
+    handleDismissKey(e, () => {
       onClose();
       focusActiveTerminal();
-    }
+    });
   };
 
   return (

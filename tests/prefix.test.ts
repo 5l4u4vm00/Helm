@@ -78,6 +78,32 @@ function runId(armed: boolean, e: KeyEventLike): string | null {
     runId(true, ev({ key: "N", code: "KeyN", shiftKey: true })) === "approval:reject-active",
   );
   check("prefix y → approve-active", runId(true, ev({ key: "y", code: "KeyY" })) === "approval:approve-active");
+  check("prefix b → notifications", runId(true, ev({ key: "b", code: "KeyB" })) === "view:toggle-notifications");
+  check("prefix i → focus:terminal", runId(true, ev({ key: "i", code: "KeyI" })) === "focus:terminal");
+  check(
+    "prefix ?（Shift+/）→ shortcuts help",
+    runId(true, ev({ key: "?", code: "Slash", shiftKey: true })) === "help:shortcuts",
+  );
+}
+
+// armed：Ctrl 壓在第二鍵 = 整個 workspace 的審批變體（與單一 session 版本互不干擾）
+{
+  check(
+    "prefix Ctrl+y → approve-all",
+    runId(true, ev({ key: "y", code: "KeyY", ctrlKey: true })) === "approval:approve-all",
+  );
+  check(
+    "prefix Ctrl+n → reject-all",
+    runId(true, ev({ key: "n", code: "KeyN", ctrlKey: true })) === "approval:reject-all",
+  );
+  check(
+    "小寫 n 仍是 session:next（不被 Ctrl 版本吃掉）",
+    runId(true, ev({ key: "n", code: "KeyN" })) === "session:next",
+  );
+  check(
+    "y 仍是 approve-active",
+    runId(true, ev({ key: "y", code: "KeyY" })) === "approval:approve-active",
+  );
 }
 
 // armed：方向鍵（純方向 = 切焦點；Ctrl+方向 = 調大小；Shift+方向 = 未知）

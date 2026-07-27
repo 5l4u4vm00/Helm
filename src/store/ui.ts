@@ -19,6 +19,7 @@ interface UiState {
   notificationsOpen: boolean;
   paletteOpen: boolean;
   settingsOpen: boolean;
+  shortcutsOpen: boolean;
   // 隱藏左側 session 側欄（釋放終端寬度）；預設顯示（false）。
   sidebarHidden: boolean;
   // 剛用工具列「新增 Workspace」建立、待側欄立即進入命名的 workspace id。
@@ -35,6 +36,7 @@ interface UiState {
   setNotificationsOpen: (v: boolean) => void;
   setPaletteOpen: (v: boolean) => void;
   setSettingsOpen: (v: boolean) => void;
+  setShortcutsOpen: (v: boolean) => void;
   setRenamingWorkspaceId: (id: string | null) => void;
   setRenamingSessionId: (id: string | null) => void;
   setSidebarPendingAction: (action: SidebarPendingAction | null) => void;
@@ -48,6 +50,7 @@ export const useUiStore = create<UiState>((set, get) => ({
   notificationsOpen: false,
   paletteOpen: false,
   settingsOpen: false,
+  shortcutsOpen: false,
   sidebarHidden: false,
   renamingWorkspaceId: null,
   renamingSessionId: null,
@@ -60,6 +63,7 @@ export const useUiStore = create<UiState>((set, get) => ({
   setNotificationsOpen: (v) => set({ notificationsOpen: v }),
   setPaletteOpen: (v) => set({ paletteOpen: v }),
   setSettingsOpen: (v) => set({ settingsOpen: v }),
+  setShortcutsOpen: (v) => set({ shortcutsOpen: v }),
   // 兩個改名旗標互斥：開一個就關掉另一個。
   setRenamingWorkspaceId: (id) => set({ renamingWorkspaceId: id, renamingSessionId: null }),
   setRenamingSessionId: (id) => set({ renamingSessionId: id, renamingWorkspaceId: null }),

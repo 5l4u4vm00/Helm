@@ -2,7 +2,16 @@
 // Regions are marked with data-focus-region so F6 can cycle between them;
 // nothing here auto-refocuses on blur (that would fight other regions).
 
-const REGION_ORDER = ["sidebar", "toolbar", "terminal", "approvals", "files", "diff"] as const;
+// Visual order; "notifications" sits next to the toolbar bell that opens it.
+const REGION_ORDER = [
+  "sidebar",
+  "toolbar",
+  "notifications",
+  "terminal",
+  "approvals",
+  "files",
+  "diff",
+] as const;
 
 export type FocusRegion = (typeof REGION_ORDER)[number];
 
@@ -37,6 +46,23 @@ export function trapTabKey(
     e.preventDefault();
     first.focus();
   }
+}
+
+/**
+ * Standard Escape handling for every overlay and panel: swallow the key so no
+ * outer layer reacts to the same press, then run the caller's close (which is
+ * responsible for restoring focus to the opener or the terminal).
+ * Returns whether the key was handled.
+ */
+export function handleDismissKey(
+  e: { key: string; preventDefault(): void; stopPropagation(): void },
+  close: () => void,
+): boolean {
+  if (e.key !== "Escape") return false;
+  e.preventDefault();
+  e.stopPropagation();
+  close();
+  return true;
 }
 
 /** Focus the active pane's xterm hidden textarea (where typing goes). */

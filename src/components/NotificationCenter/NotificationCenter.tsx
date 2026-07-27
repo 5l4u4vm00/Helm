@@ -5,7 +5,8 @@ import { useSessionStore } from "../../store/sessions";
 import { useNotificationsStore } from "../../store/notifications";
 import { useUiStore } from "../../store/ui";
 import { activateSession } from "../../commands/actions";
-import { focusActiveTerminal } from "../../focus/focusUtils";
+import { focusActiveTerminal, handleDismissKey } from "../../focus/focusUtils";
+import { handleListKey, hasNonShiftModifier } from "../../focus/listNav";
 import { useT } from "../../i18n";
 import type { AppNotification, NotifyKind } from "../../store/notificationCenter";
 import "./NotificationCenter.css";
@@ -40,11 +41,10 @@ function NotificationCenterContent() {
   const onClose = () => setOpen(false);
 
   const onKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Escape") {
-      e.preventDefault();
+    handleDismissKey(e, () => {
       onClose();
       focusActiveTerminal();
-    }
+    });
   };
 
   const onItemClick = (n: AppNotification) => {
@@ -55,6 +55,17 @@ function NotificationCenterContent() {
     if (!alive) return;
     activateSession(n.sessionId);
     onClose();
+  };
+
+  // Region layer, same vocabulary as the changed-files list.
+  const onItemKey = (e: React.KeyboardEvent, n: AppNotification) => {
+    if (hasNonShiftModifier(e)) return;
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      onItemClick(n);
+    } else if (handleListKey(e.key, e.currentTarget.closest(".notif-list"), ".notif-item")) {
+      e.preventDefault();
+    }
   };
 
   return (
@@ -75,13 +86,16 @@ function NotificationCenterContent() {
       <div className="notif-list">
         {items.length === 0 && <div className="notif-empty">{t("notifCenter.empty")}</div>}
         {/* 追加序尾端最新 → 反轉呈現（最新在上）。 */}
-        {[...items].reverse().map((n) => (
+        {[...items].reverse().map((n, i) => (
           <div
             key={n.id}
             className={`notif-item ${n.read ? "" : "unread"} ${n.resolved ? "resolved" : ""}`}
             role="button"
-            tabIndex={-1}
+            // Roving focus: only the newest item is a Tab stop; j/k move from there.
+            tabIndex={i === 0 ? 0 : -1}
+            data-region-entry={i === 0 ? "" : undefined}
             onClick={() => onItemClick(n)}
+            onKeyDown={(e) => onItemKey(e, n)}
           >
             <span className={`notif-icon kind-${n.kind}`}>{KIND_ICONS[n.kind]}</span>
             <div className="notif-main">

@@ -37,7 +37,7 @@ import {
 } from "../../ipc/notify";
 import { useLanguageStore, LANGUAGE_NAMES, LANGUAGE_LABELS } from "../../store/language";
 import { installPendingUpdate, useUpdateStore } from "../../store/update";
-import { focusActiveTerminal, trapTabKey } from "../../focus/focusUtils";
+import { focusActiveTerminal, handleDismissKey, trapTabKey } from "../../focus/focusUtils";
 import { useT } from "../../i18n";
 import "./SettingsDialog.css";
 
@@ -373,10 +373,8 @@ function SettingsDialogInner() {
   };
 
   const onKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Escape") {
-      e.preventDefault();
-      e.stopPropagation();
-      close();
+    if (handleDismissKey(e, close)) {
+      return;
     } else if (e.key === "Tab") {
       trapTabKey(e, e.currentTarget as HTMLElement);
     }
