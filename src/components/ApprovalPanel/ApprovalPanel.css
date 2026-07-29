@@ -16,12 +16,49 @@
   padding: 10px;
 }
 
+.approval-panel.collapsed {
+  /* 收合成貼合內容的窄 bar：只剩標頭列，不再覆蓋大片終端機底部輸入。 */
+  width: auto;
+  max-height: none;
+  padding: 6px 10px;
+}
+
 .approval-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.05em;
   color: #f9e2af;
   margin-bottom: 8px;
+}
+
+.approval-panel.collapsed .approval-header {
+  margin-bottom: 0;
+}
+
+.approval-collapse {
+  /* 推到最右；批次按鈕（若有）在它左側。 */
+  margin-left: auto;
+  border: none;
+  background: transparent;
+  color: #f9e2af;
+  font-size: 15px;
+  line-height: 1;
+  font-weight: 700;
+  padding: 0 4px;
+  cursor: pointer;
+}
+
+.approval-collapse:hover {
+  filter: brightness(1.2);
+}
+
+/* 批次按鈕存在時由它負責靠右，收合鈕緊接其後（header 的 gap 撐開間距），
+   避免兩個 auto margin 之間夾出空隙。 */
+.approval-batch + .approval-collapse {
+  margin-left: 0;
 }
 
 .approval-content {
@@ -44,7 +81,8 @@
 }
 
 .approval-batch {
-  float: right;
+  /* 靠右成組（float 在 flex 容器內無效，改用 auto margin）；收合鈕接在其後。 */
+  margin-left: auto;
   display: flex;
   gap: 6px;
 }

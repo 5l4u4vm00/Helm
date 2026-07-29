@@ -11,6 +11,7 @@ import {
 } from "../../commands/actions";
 import { focusActiveTerminal, handleDismissKey } from "../../focus/focusUtils";
 import { useSessionStore } from "../../store/sessions";
+import { useUiStore } from "../../store/ui";
 import {
   pendingPanelPromptsInWorkspace,
   resolveFocusedWorkspace,
@@ -27,6 +28,8 @@ export function ApprovalPanel() {
       pendingPanelPromptsInWorkspace(s.sessions, resolveFocusedWorkspace(s.sessions, s.activeId)),
     ),
   );
+  const collapsed = useUiStore((s) => s.approvalCollapsed);
+  const toggleCollapsed = useUiStore((s) => s.toggleApprovalCollapsed);
   if (pending.length === 0) return null;
   const approvals = pending.filter((s) => Boolean(s.pendingApproval));
 
@@ -43,10 +46,14 @@ export function ApprovalPanel() {
   };
 
   return (
-    <div className="approval-panel" data-focus-region="approvals" onKeyDown={onKeyDown}>
+    <div
+      className={collapsed ? "approval-panel collapsed" : "approval-panel"}
+      data-focus-region="approvals"
+      onKeyDown={onKeyDown}
+    >
       <div className="approval-header">
         {t("approval.pending")} <span className="approval-count">{pending.length}</span>
-        {approvals.length > 1 && (
+        {!collapsed && approvals.length > 1 && (
           <span className="approval-batch">
             <button className="batch approve" onClick={() => respondAllApprovals(true)}>
               {t("approval.approveAll")}
@@ -56,7 +63,16 @@ export function ApprovalPanel() {
             </button>
           </span>
         )}
+        <button
+          className="approval-collapse"
+          title={collapsed ? t("approval.expand") : t("approval.collapse")}
+          aria-label={collapsed ? t("approval.expand") : t("approval.collapse")}
+          onClick={toggleCollapsed}
+        >
+          {collapsed ? "+" : "–"}
+        </button>
       </div>
+      {!collapsed && (
       <div className="approval-content">
         {pending.map((s) => (
           <div className="approval-item" key={s.id}>
@@ -98,6 +114,7 @@ export function ApprovalPanel() {
           </div>
         ))}
       </div>
+      )}
     </div>
   );
 }

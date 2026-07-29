@@ -160,6 +160,8 @@ export const en: Record<string, string> = {
   "approval.approve": "Approve",
   "approval.reject": "Reject",
   "approval.answer": "Answer",
+  "approval.collapse": "Collapse",
+  "approval.expand": "Expand",
 
   // Changed files panel
   "files.title": "Changed files",
@@ -237,6 +239,7 @@ export const en: Record<string, string> = {
   "command.newWorkspace": "New Workspace",
   "command.toggleFiles": "Changed Files Panel",
   "command.toggleNotifications": "Notifications",
+  "command.toggleApproval": "Collapse Approval Panel",
   "command.toggleSidebar": "Toggle Sidebar",
   "command.toggleTheme": "Toggle Theme",
   "command.openSettings": "Open Settings",

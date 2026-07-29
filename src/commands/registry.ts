@@ -212,6 +212,13 @@ function staticCommands(): Command[] {
       run: () => useUiStore.getState().toggleNotifications(),
     },
     {
+      id: "view:toggle-approval",
+      title: t("command.toggleApproval"),
+      category: t("category.view"),
+      keywords: "approval pending panel collapse hide",
+      run: () => useUiStore.getState().toggleApprovalCollapsed(),
+    },
+    {
       id: "view:toggle-sidebar",
       title: t("command.toggleSidebar"),
       category: t("category.view"),

@@ -157,6 +157,8 @@ export const zhTW: Record<string, string> = {
   "approval.approve": "批准",
   "approval.reject": "拒絕",
   "approval.answer": "前往回答",
+  "approval.collapse": "收合",
+  "approval.expand": "展開",
 
   // Changed files panel
   "files.title": "檔案變更",
@@ -233,6 +235,7 @@ export const zhTW: Record<string, string> = {
   "command.newWorkspace": "新增 Workspace",
   "command.toggleFiles": "檔案變更面板",
   "command.toggleNotifications": "通知中心",
+  "command.toggleApproval": "收合審批面板",
   "command.toggleSidebar": "切換側欄",
   "command.toggleTheme": "切換主題",
   "command.openSettings": "開啟設定",
