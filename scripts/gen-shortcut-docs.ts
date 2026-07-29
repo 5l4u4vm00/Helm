@@ -7,7 +7,7 @@
 //
 // tests/shortcut-docs.test.ts runs the check, so the README cannot drift.
 import { readFileSync, writeFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname, join } from "node:path";
 import { buildShortcutDocs } from "../src/commands/shortcutDocs.ts";
 import { en } from "../src/i18n/translations/en.ts";
@@ -55,8 +55,10 @@ export function checkReadme(): { ok: boolean; expected: string } {
   return { ok: readme === expected, expected };
 }
 
-// Only act when run directly, so the test can import the helpers.
-if (process.argv[1] && import.meta.url.endsWith(process.argv[1].replace(/\\/g, "/"))) {
+// Only act when run directly, so the test can import the helpers. Compare via
+// pathToFileURL so a path containing spaces (percent-encoded in import.meta.url)
+// still matches — a bare string endsWith would silently no-op there.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const { ok, expected } = checkReadme();
   if (process.argv.includes("--check")) {
     if (!ok) {
