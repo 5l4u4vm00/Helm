@@ -1,9 +1,17 @@
 // Impure command helpers bridging the stores, PTY, and DOM focus.
 // Shared by the command registry and components so buttons and hotkeys
 // go through the exact same code path.
-import { useSessionStore } from "../store/sessions";
-import { clearNotifyDedupe } from "../store/notificationRouter";
+import { useSessionStore, type Session } from "../store/sessions";
+import { clearNotifyDedupe, isBusyState } from "../store/notificationRouter";
 import { markApprovalAnswered } from "../store/approvalSuppress";
+import { useFolderStatusStore } from "../store/folderStatus";
+import { useSettingsStore } from "../store/settings";
+import {
+  isResumeFailed,
+  markResumeAttempt,
+  reportResumeFailure,
+} from "../store/resumeState";
+import { resolveResumePlan, type ResumePlan } from "../agents/resume";
 import { groupTreeOf, useLayoutStore } from "../store/layout";
 import { useWorkspaceStore, expandWorkspace } from "../store/workspaces";
 import {
@@ -27,7 +35,8 @@ import {
   resizeTarget,
   type NavDir,
 } from "./paneNav";
-import type { AgentLauncher } from "../agents/types";
+import { t } from "../i18n";
+import type { AgentLauncher, AgentProfile } from "../agents/types";
 
 /**
  * Make a session active (same semantics as clicking it in the sidebar)
@@ -247,22 +256,80 @@ export function resizeActivePane(dir: NavDir): void {
 }
 
 /**
- * 這個 session 有沒有可接續的 agent 對話。衍生而非儲存：條件是「有 agent、目前
- * 沒在跑、且 profile 加上記下來的 agent session id 能組出一條指令」。
- * 實作歸屬：W-06 feat/agent-resume。
+ * 這個 session 現在按下「接續」會送出什麼指令；null = 沒有可接續的對話。
+ * 衍生而非儲存，條件三個都要成立：
+ * - 有 agent（純 shell 沒有對話可接）。
+ * - agent 目前沒在跑，PTY 也還活著 —— 對忙碌中的 agent 送指令只是把文字塞進
+ *   它的輸入框，對死掉的 PTY 送則什麼都不會發生。
+ * - profile 加上記下來的 agent session id 能組出一條指令（resolveResumePlan）。
  */
-export function canResumeActiveAgent(): boolean {
-  return false; // W-06
+export function resumePlanForSession(sess: Session | undefined): ResumePlan | null {
+  if (!sess?.agentId || sess.status === "exited" || isBusyState(sess.agentState)) {
+    return null;
+  }
+  return resolveResumePlan(
+    getProfile(sess.agentId),
+    sess.agentSessionIds,
+    sess.launchCommand,
+    (agentSessionId) => isResumeFailed(sess.id, agentSessionId),
+  );
 }
 
 /**
  * 把 resume 指令寫進**現有** PTY（沿用 respondActiveApproval 的 ptyWrite 慣例）。
  * 刻意不改活著的 session 的 launchCommand —— 它在 Terminal 主 effect 的 deps 裡，
  * 改它等於 teardown + ptyKill + 重開一條 PTY。
- * 實作歸屬：W-06 feat/agent-resume。
  */
+export function resumeSessionAgent(sessionId: string): void {
+  const sess = useSessionStore.getState().sessions.find((s) => s.id === sessionId);
+  const plan = resumePlanForSession(sess);
+  if (!sess || !plan) return;
+  // 工作目錄不在了 → 一個字都不寫進 PTY。接續是**以目錄為 scope** 的：在錯的
+  // 目錄執行等於指向錯的 repo，而 Terminal 在 cwd 消失時會退回家目錄 —— 那裡
+  // 要嘛找不到對話，要嘛（更糟）接到家目錄下另一段無關的對話。
+  // dirExists 是 fail-open：只有「探測過且確認不在」才阻擋，未知不擋。
+  if (sess.cwd && useFolderStatusStore.getState().missing[sess.cwd] === true) {
+    reportResumeFailure(sess, t("terminal.launchSkipped", { command: plan.command }));
+    return;
+  }
+  markResumeAttempt(sess.id, plan.agentSessionId, Date.now());
+  void ptyWrite(sess.id, `${plan.command}\r`);
+}
+
+/** 作用中 session 有沒有可接續的對話（命令面板 / Ctrl+A R 的 enabled）。 */
+export function canResumeActiveAgent(): boolean {
+  const { sessions, activeId } = useSessionStore.getState();
+  return resumePlanForSession(sessions.find((s) => s.id === activeId)) !== null;
+}
+
 export function resumeActiveAgent(): void {
-  // W-06
+  const { activeId } = useSessionStore.getState();
+  if (activeId) resumeSessionAgent(activeId);
+}
+
+/**
+ * 還原流程要不要「一開場就自動接續」，以及該用哪個指令。回傳非 null 時，呼叫端
+ * 應把它當成**新建** session 的 launchCommand（那是唯一能安全設定它的時機：
+ * session 還沒有 PTY，見 resumeSessionAgent 的註解）。
+ *
+ * 預設關（settings.resumeAgentsOnLaunch）：一次對 8 個 pane 送 `--resume` 會燒
+ * token、可能撞 rate limit，而且開機時 workspace 資料夾是否還在都還沒探測完。
+ * relaunch 不算接續 —— 還原流程本來就會用 launchCommand 起一次，重複回報它只會
+ * 讓呼叫端誤以為上下文接回來了。
+ *
+ * 由 W-06 提供、留給還原流程呼叫（本支線不碰 App.tsx / sessionSnapshot.ts）。
+ */
+export function resumeCommandForRestore(
+  session: Pick<Session, "agentId" | "agentSessionIds" | "launchCommand">,
+  profile?: AgentProfile,
+): string | null {
+  if (!useSettingsStore.getState().resumeAgentsOnLaunch) return null;
+  const plan = resolveResumePlan(
+    profile ?? getProfile(session.agentId),
+    session.agentSessionIds,
+    session.launchCommand,
+  );
+  return plan && plan.kind !== "relaunch" ? plan.command : null;
 }
 
 /** screen-style C-a a / C-a C-a: write a literal Ctrl+A (0x01) to the active PTY. */

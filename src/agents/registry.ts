@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 // .ts 副檔名：讓 node 測試（strip-types 模式）能直接載入本模組。
 import { BUILTIN_LAUNCHERS, BUILTIN_PROFILES, GENERIC_PROFILE } from "./builtins.ts";
 import { deriveNotifySignal } from "./engine.ts";
+import { normalizeResume } from "./resume.ts";
 import type { AgentConfig, AgentLauncher, AgentProfile } from "./types";
 
 let profiles = new Map<string, AgentProfile>();
@@ -31,6 +32,15 @@ function reset() {
 }
 reset();
 
+/**
+ * 使用者 profile 的欄位正規化。pattern 類欄位一律照原樣採用（無效 regex 在
+ * 使用點各自吞掉），但 resume 例外：它會被寫進 PTY 去執行，半殘的樣板可能接到
+ * 錯的對話，所以在這裡就收斂成「可用」或「沒有」（見 resume.normalizeResume）。
+ */
+export function normalizeProfile(p: AgentProfile): AgentProfile {
+  return { ...p, resume: normalizeResume(p.resume) };
+}
+
 /** 啟動時載入使用者設定並合併（使用者同 id 覆寫內建，launchers 追加）。 */
 export async function initRegistry(): Promise<void> {
   reset();
@@ -38,7 +48,7 @@ export async function initRegistry(): Promise<void> {
     const raw = await invoke<string | null>("read_agents_config");
     if (!raw) return;
     const cfg = JSON.parse(raw) as AgentConfig;
-    for (const p of cfg.profiles ?? []) profiles.set(p.id, p);
+    for (const p of cfg.profiles ?? []) profiles.set(p.id, normalizeProfile(p));
     for (const l of cfg.launchers ?? []) launchers.push(l);
     compileDetectRegexes();
   } catch {

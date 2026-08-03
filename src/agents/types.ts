@@ -116,6 +116,30 @@ export interface AgentExtractors {
   fileChange?: string;
 }
 
+/**
+ * 接續（resume）既有對話的指令樣板。資料驅動，與其他欄位同一套慣例：指令由
+ * profile 決定，程式碼裡不寫死任何 CLI 名稱，所以 agents.json 也能為自家工具
+ * 補上接續能力。沒有本欄位 = 這個 agent 不支援接續（UI 上連按鈕都不出現）。
+ */
+export interface AgentResume {
+  /**
+   * 以指定的 agent session id 接續，必須含 `{id}` 佔位符
+   * （例："claude --resume {id}"）。缺佔位符的樣板會被忽略 —— 那會靜默接到
+   * 「最近一次」而不是我們記下來的那一段對話。
+   */
+  byId?: string;
+  /**
+   * 接續最近一次對話（例："claude --continue"）。沒裝 hook、拿不到 id 時的
+   * 優雅降級路徑。
+   */
+  latest?: string;
+  /**
+   * 「找不到這段對話」的失敗訊息 pattern（regex 來源字串，逐行不分大小寫）。
+   * 只在剛送出 resume 的觀察窗內比對（見 store/resumeState.ts）。
+   */
+  failure?: string;
+}
+
 export interface AgentProfile {
   /** 唯一 id，例如 "claude-code"、"codex"、"generic"。 */
   id: string;
@@ -134,6 +158,8 @@ export interface AgentProfile {
   notify?: AgentNotifyPatterns;
   /** 結構化擷取 pattern（成本/用量/檔案變更），選填。 */
   extract?: AgentExtractors;
+  /** 接續既有對話的指令樣板，選填。未提供 = 不支援接續。 */
+  resume?: AgentResume;
   /** 進入 waiting 時，approve / reject 要寫回 PTY 的按鍵序列。 */
   approve: string;
   reject: string;
