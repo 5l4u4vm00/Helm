@@ -288,8 +288,9 @@
 }
 
 .status-dot.busy {
-  background: #a6e3a1;
-  box-shadow: 0 0 6px #a6e3a1;
+  background: #89b4fa;
+  box-shadow: 0 0 6px #89b4fa;
+  animation: pulse 1.2s ease-in-out infinite;
 }
 
 .status-dot.idle {
