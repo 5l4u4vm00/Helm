@@ -83,6 +83,15 @@ export const BUILTIN_PROFILES: AgentProfile[] = [
       // 檔案變更：Update/Edit/Write/Create(路徑)（例：⏺ Update(demo.txt)）。
       fileChange: "\\b(Update|Edit|MultiEdit|Write|Create)\\(([^)]+)\\)",
     },
+    // 接續對話。`--resume <id>` 用的是 hook payload 收下來的 session_id；
+    // `--continue` 是沒裝 hook（拿不到 id）時的降級路徑。兩者都**以目錄為
+    // scope** —— 在別的目錄執行只會得到 failure 那行訊息，所以呼叫端在寫入
+    // PTY 前會先確認工作目錄還在（見 commands/actions.ts）。
+    resume: {
+      byId: "claude --resume {id}",
+      latest: "claude --continue",
+      failure: "No conversation found",
+    },
     // 預設按 Enter 接受被 highlight 的第一項；請依實際 UI 於 agents.json 微調。
     approve: "\r",
     reject: "\x1b", // Esc
@@ -128,6 +137,9 @@ export const BUILTIN_PROFILES: AgentProfile[] = [
       contextLeftPercent: "([0-9]+(?:\\.[0-9]+)?)%\\s*context\\s*left",
       fileChange: "\\b(Apply patch|patch|edit|create|update)\\b.*?([^\\s]+\\.[A-Za-z0-9]+)",
     },
+    // 刻意沒有 resume：Codex 目前沒有「以 id 接續」的旗標可對應我們記下來的
+    // session id。留空 = pane 上不出現接續按鈕，勝過提供一個會靜默接到別段
+    // 對話的指令。
     approve: "y\r",
     // The menu binds "No" to Esc; "n\r" would press Enter on the highlighted
     // "Yes, proceed" and approve instead.

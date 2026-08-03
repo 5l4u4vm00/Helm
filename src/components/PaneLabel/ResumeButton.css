@@ -1,2 +1,20 @@
-/* 接續按鈕的樣式（W-06 feat/agent-resume 實作）。空樣式表：foundation 先建好
-   import 路徑，支線只填內容，避免動到已凍結的 PaneLabel.css。 */
+/* 接續 agent 對話按鈕。外框/hover 沿用 PaneLabel.css 的 .pane-actions button，
+   這裡只補「不能按」與「這一次不是真的接續」兩種狀態的視覺差異。 */
+
+/* disabled 仍留在版面上（而不是消失）：位置固定，使用者才學得會它在哪，
+   也才有 tooltip 可以說明為什麼現在按不了。 */
+.pane-actions .pane-resume:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.pane-actions .pane-resume:disabled:hover {
+  background: none;
+  color: var(--muted);
+}
+
+/* relaunch = 重跑啟動指令、開一段全新對話，不是接續。用警示色（同
+   .pane-badge-warn）提醒「按下去不會把上下文帶回來」。 */
+.pane-actions .pane-resume[data-resume-kind="relaunch"] {
+  color: #fab387;
+}
