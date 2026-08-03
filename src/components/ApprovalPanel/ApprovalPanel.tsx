@@ -13,7 +13,7 @@ import { focusActiveTerminal, handleDismissKey } from "../../focus/focusUtils";
 import { useSessionStore } from "../../store/sessions";
 import { useUiStore } from "../../store/ui";
 import {
-  pendingPanelPromptsInWorkspace,
+  pendingApprovalsInWorkspace,
   resolveFocusedWorkspace,
 } from "../../store/workspaceGroups";
 import { useT } from "../../i18n";
@@ -25,14 +25,12 @@ export function ApprovalPanel() {
   // usage/state tick（PTY 輸出頻率）不會重繪整個面板。
   const pending = useSessionStore(
     useShallow((s) =>
-      pendingPanelPromptsInWorkspace(s.sessions, resolveFocusedWorkspace(s.sessions, s.activeId)),
+      pendingApprovalsInWorkspace(s.sessions, resolveFocusedWorkspace(s.sessions, s.activeId)),
     ),
   );
   const collapsed = useUiStore((s) => s.approvalCollapsed);
   const toggleCollapsed = useUiStore((s) => s.toggleApprovalCollapsed);
   if (pending.length === 0) return null;
-  const approvals = pending.filter((s) => Boolean(s.pendingApproval));
-
   // Escape only leaves the panel: it stays visible while approvals are pending.
   const onKeyDown = (e: React.KeyboardEvent) => {
     handleDismissKey(e, focusActiveTerminal);
@@ -53,7 +51,7 @@ export function ApprovalPanel() {
     >
       <div className="approval-header">
         {t("approval.pending")} <span className="approval-count">{pending.length}</span>
-        {!collapsed && approvals.length > 1 && (
+        {!collapsed && pending.length > 1 && (
           <span className="approval-batch">
             <button className="batch approve" onClick={() => respondAllApprovals(true)}>
               {t("approval.approveAll")}
@@ -86,30 +84,22 @@ export function ApprovalPanel() {
               <span className="approval-agent">{s.agentLabel ?? t("toolbar.defaultAgent")}</span>
               <span className="approval-session">{s.title}</span>
             </div>
-            <div className="approval-prompt" title={s.pendingApproval ?? s.pendingPrompt?.text}>
-              {s.pendingApproval ?? s.pendingPrompt?.text}
+            <div className="approval-prompt" title={s.pendingApproval}>
+              {s.pendingApproval}
             </div>
             <div className="approval-actions">
-              {s.pendingApproval ? (
-                <>
-                  <button
-                    className="approve"
-                    onClick={() => respondApproval(s.id, s.agentId, true)}
-                  >
-                    {t("approval.approve")}
-                  </button>
-                  <button
-                    className="reject"
-                    onClick={() => respondApproval(s.id, s.agentId, false)}
-                  >
-                    {t("approval.reject")}
-                  </button>
-                </>
-              ) : (
-                <button className="answer" onClick={() => activateSession(s.id)}>
-                  {t("approval.answer")}
-                </button>
-              )}
+              <button
+                className="approve"
+                onClick={() => respondApproval(s.id, s.agentId, true)}
+              >
+                {t("approval.approve")}
+              </button>
+              <button
+                className="reject"
+                onClick={() => respondApproval(s.id, s.agentId, false)}
+              >
+                {t("approval.reject")}
+              </button>
             </div>
           </div>
         ))}

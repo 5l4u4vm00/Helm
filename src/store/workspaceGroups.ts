@@ -101,25 +101,6 @@ export function pendingApprovalsInWorkspace<
   return sessions.filter((s) => s.workspaceId === workspaceId && s.pendingApproval);
 }
 
-/**
- * Sessions whose prompt needs attention in the focused workspace. Questions
- * are included so the panel can bring the user to the terminal to answer;
- * plan confirmations remain notification-only.
- */
-export function pendingPanelPromptsInWorkspace<
-  S extends {
-    workspaceId: string;
-    pendingApproval?: string;
-    pendingPrompt?: { kind: "question" | "plan"; text: string };
-  },
->(sessions: S[], workspaceId: string): S[] {
-  return sessions.filter(
-    (s) =>
-      s.workspaceId === workspaceId &&
-      (Boolean(s.pendingApproval) || s.pendingPrompt?.kind === "question"),
-  );
-}
-
 /** Total changed-file entries across all sessions in one workspace. */
 export function workspaceChangedFileCount(
   sessions: { workspaceId: string; changedFiles?: unknown[] }[],

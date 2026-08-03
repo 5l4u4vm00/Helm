@@ -155,12 +155,11 @@ export const zhTW: Record<string, string> = {
   "notifCenter.close": "關閉",
 
   // Approval panel
-  "approval.pending": "待處理",
+  "approval.pending": "待核准",
   "approval.approveAll": "全部批准",
   "approval.rejectAll": "全部拒絕",
   "approval.approve": "批准",
   "approval.reject": "拒絕",
-  "approval.answer": "前往回答",
   "approval.collapse": "收合",
   "approval.expand": "展開",
 
