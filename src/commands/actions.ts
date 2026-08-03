@@ -76,15 +76,25 @@ export function renameActiveSession(): void {
   ui.setRenamingSessionId(active.id);
 }
 
-/** Split the active pane, creating a new session in the active session's group. */
-export function splitActivePane(dir: SplitDir, launcher?: AgentLauncher): void {
+/** Split a pane, creating a new session in the pane's workspace and group. */
+export function splitPane(sessionId: string, dir: SplitDir, launcher?: AgentLauncher): void {
   const store = useSessionStore.getState();
-  const active = store.sessions.find((s) => s.id === store.activeId);
-  if (!active) return;
+  const session = store.sessions.find((s) => s.id === sessionId);
+  if (!session) return;
   const layout = useLayoutStore.getState();
-  if (!layout.canSplitPane(active.id, dir)) return;
-  const newId = store.createSession(launcher, active.workspaceId, folderForWorkspace(active.workspaceId));
-  layout.splitPane(active.id, dir, newId);
+  if (!layout.canSplitPane(session.id, dir)) return;
+  const newId = store.createSession(
+    launcher,
+    session.workspaceId,
+    folderForWorkspace(session.workspaceId),
+  );
+  layout.splitPane(session.id, dir, newId);
+}
+
+/** Split the active pane. */
+export function splitActivePane(dir: SplitDir, launcher?: AgentLauncher): void {
+  const { activeId } = useSessionStore.getState();
+  if (activeId) splitPane(activeId, dir, launcher);
 }
 
 /** Session ids in sidebar visual order (grouped by workspace, then split-group cluster). */
