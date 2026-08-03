@@ -438,6 +438,14 @@ check(
   deriveTitleSignal(claude, "~/project — zsh") === undefined,
 );
 check("codex 盲文 spinner 標題 → busy", deriveTitleSignal(codex, "⠹ work") === "busy");
+check(
+  "codex Action Required 標題 → waiting",
+  deriveTitleSignal(codex, "[ ! ] Action Required — Helm") === "waiting",
+);
+check(
+  "codex Action Required 閃爍相位 → waiting",
+  deriveTitleSignal(codex, "[ . ] Action Required — Helm") === "waiting",
+);
 check("codex 靜止標題（純目錄名）→ 無訊號", deriveTitleSignal(codex, "work") === undefined);
 check(
   "generic 無 title pattern → 無訊號",
@@ -466,6 +474,10 @@ check(
   "busy + 審批選單仍判 waiting（scan 優先）",
   deriveState(claude, "Do you want to proceed?\n❯ 1. Yes\n  2. No", "busy").state ===
     "waiting",
+);
+check(
+  "waiting title 否決殘留完成文字 → waiting",
+  deriveState(codex, "completed an earlier task", "waiting").state === "waiting",
 );
 check(
   "rest 否決殘留 spinner 行（composer 可見）→ done",
