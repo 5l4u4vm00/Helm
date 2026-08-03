@@ -23,6 +23,7 @@ import {
 } from "../../store/settings";
 import { firstFontFamily, toFontFamilyValue } from "../../store/fontFamily";
 import { pickImage } from "../../ipc/dialog";
+import { forgetPersistedState } from "../../ipc/appStore";
 import { listMonospaceFonts } from "../../ipc/fonts";
 import {
   installClaudeHooks,
@@ -278,7 +279,12 @@ function SettingsDialogInner() {
   const notifyWaiting = useSettingsStore((s) => s.notifyWaiting);
   const notifyDone = useSettingsStore((s) => s.notifyDone);
   const notifyError = useSettingsStore((s) => s.notifyError);
+  const notifyInterrupted = useSettingsStore((s) => s.notifyInterrupted);
+  const notifyStalled = useSettingsStore((s) => s.notifyStalled);
   const notifyHiddenPanes = useSettingsStore((s) => s.notifyHiddenPanes);
+  const restoreSessions = useSettingsStore((s) => s.restoreSessions);
+  const restoreScrollback = useSettingsStore((s) => s.restoreScrollback);
+  const resumeAgentsOnLaunch = useSettingsStore((s) => s.resumeAgentsOnLaunch);
   const backgroundImage = useSettingsStore((s) => s.backgroundImage);
   const backgroundDim = useSettingsStore((s) => s.backgroundDim);
   const setFontFamily = useSettingsStore((s) => s.setFontFamily);
@@ -291,9 +297,18 @@ function SettingsDialogInner() {
   const setNotifyWaiting = useSettingsStore((s) => s.setNotifyWaiting);
   const setNotifyDone = useSettingsStore((s) => s.setNotifyDone);
   const setNotifyError = useSettingsStore((s) => s.setNotifyError);
+  const setNotifyInterrupted = useSettingsStore((s) => s.setNotifyInterrupted);
+  const setNotifyStalled = useSettingsStore((s) => s.setNotifyStalled);
   const setNotifyHiddenPanes = useSettingsStore((s) => s.setNotifyHiddenPanes);
+  const setRestoreSessions = useSettingsStore((s) => s.setRestoreSessions);
+  const setRestoreScrollback = useSettingsStore((s) => s.setRestoreScrollback);
+  const setResumeAgentsOnLaunch = useSettingsStore((s) => s.setResumeAgentsOnLaunch);
   const setBackgroundImage = useSettingsStore((s) => s.setBackgroundImage);
   const setBackgroundDim = useSettingsStore((s) => s.setBackgroundDim);
+
+  // 「忘記已保存的工作階段」按下後只改下次啟動的行為，這裡只需要一次性的
+  // 視覺回饋（不追蹤檔案實際狀態）。
+  const [snapshotForgotten, setSnapshotForgotten] = useState(false);
 
   // 通知後端狀態：macOS 授權失敗或 dev 模式時退回 osascript（通知歸屬
   // Script Editor、點擊無法聚焦 Helm），在總開關下方顯示警告與修復入口。
@@ -488,6 +503,24 @@ function SettingsDialogInner() {
                 />
               </label>
               <label className="settings-row settings-subrow">
+                <span>{t("settings.notifyInterrupted")}</span>
+                <input
+                  type="checkbox"
+                  checked={notifyInterrupted}
+                  disabled={!notificationsEnabled}
+                  onChange={(e) => setNotifyInterrupted(e.target.checked)}
+                />
+              </label>
+              <label className="settings-row settings-subrow">
+                <span>{t("settings.notifyStalled")}</span>
+                <input
+                  type="checkbox"
+                  checked={notifyStalled}
+                  disabled={!notificationsEnabled}
+                  onChange={(e) => setNotifyStalled(e.target.checked)}
+                />
+              </label>
+              <label className="settings-row settings-subrow">
                 <span>{t("settings.notifyHiddenPanes")}</span>
                 <input
                   type="checkbox"
@@ -516,6 +549,47 @@ function SettingsDialogInner() {
                   onChange={(e) => setDefaultCwd(e.target.value)}
                 />
               </label>
+
+              {/* 重啟還原。還原出來的 pane 一律是新的 PTY（不會復活行程），
+                  所以 pane 標題列會標上 restored。 */}
+              <div className="settings-row settings-section">{t("settings.restoreSection")}</div>
+              <label className="settings-row settings-subrow">
+                <span>{t("settings.restoreSessions")}</span>
+                <input
+                  type="checkbox"
+                  checked={restoreSessions}
+                  onChange={(e) => setRestoreSessions(e.target.checked)}
+                />
+              </label>
+              <label className="settings-row settings-subrow">
+                <span>{t("settings.restoreScrollback")}</span>
+                <input
+                  type="checkbox"
+                  checked={restoreScrollback}
+                  disabled={!restoreSessions}
+                  onChange={(e) => setRestoreScrollback(e.target.checked)}
+                />
+              </label>
+              <label className="settings-row settings-subrow">
+                <span>{t("settings.resumeAgentsOnLaunch")}</span>
+                <input
+                  type="checkbox"
+                  checked={resumeAgentsOnLaunch}
+                  disabled={!restoreSessions}
+                  onChange={(e) => setResumeAgentsOnLaunch(e.target.checked)}
+                />
+              </label>
+              <div className="settings-row settings-subrow settings-row-actions">
+                <button
+                  className="settings-secondary"
+                  disabled={snapshotForgotten}
+                  onClick={() => {
+                    void forgetPersistedState().then(() => setSnapshotForgotten(true));
+                  }}
+                >
+                  {snapshotForgotten ? t("settings.forgetSnapshotDone") : t("settings.forgetSnapshot")}
+                </button>
+              </div>
             </>
           )}
 

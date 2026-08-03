@@ -29,6 +29,17 @@ import {
   resetNonWaitingStreak,
   setTitleSignal,
 } from "./store/scanState";
+import { clearStaleBusy, markPtyOutput } from "./store/staleBusy";
+import { startStaleBusyWatchdog } from "./store/staleBusyWatch";
+import { clearResumeState, consumeResumeFailure } from "./store/resumeState";
+import {
+  flushSnapshot,
+  restoreFromSnapshot,
+  startSessionPersistence,
+} from "./store/sessionSnapshot";
+import { flushScrollback, startScrollbackPersistence } from "./components/Terminal/scrollback";
+import { loadJournalEntries } from "./store/eventJournal";
+import { useNotificationsStore } from "./store/notifications";
 import { customCssVars, useThemeStore } from "./store/theme";
 import { useSettingsStore } from "./store/settings";
 import { groupTreeOf, useLayoutStore } from "./store/layout";
@@ -51,7 +62,11 @@ import { useUpdateStore } from "./store/update";
 import { useLanguageStore } from "./store/language";
 import { initRegistry, detectNotifyProfile, detectProfile, getProfile } from "./agents/registry";
 import { deriveNotifySignal, deriveState, deriveTitleSignal, stripAnsi } from "./agents/engine";
-import { normalizeHookPayload, profileIdForSource } from "./agents/hookEvents";
+import {
+  extractAgentIdentity,
+  normalizeHookPayload,
+  profileIdForSource,
+} from "./agents/hookEvents";
 import { listenAgentHook } from "./ipc/hooks";
 import { extractFilesFromText, extractFromLine, extractUsageFromText } from "./agents/extract";
 import { useT } from "./i18n";
@@ -59,6 +74,10 @@ import "./App.css";
 
 // 只在整個 app 生命週期做一次啟動流程。
 let bootstrapped = false;
+
+// 關窗流程已經在跑（onCloseRequested 的 destroy() 不會再觸發自己，但使用者連按
+// 兩次關閉鈕會，第二次不該再 flush 一輪）。
+let closingWindow = false;
 
 // 啟動時檢查更新；找到新版本只記錄下來提示使用者決定，不自動下載安裝。
 async function checkForUpdateOnStartup(): Promise<void> {
@@ -178,6 +197,11 @@ function handleHookEvent(id: string, source: string, payload: unknown) {
     const p = getProfile(profileId);
     store.setDetectedAgent(id, p.id, p.label);
   }
+  // Agent 身分（session_id / transcript_path）在每個 hook payload 裡都有，包括
+  // 本函式其他分支會丟棄的事件（SessionStart 等），所以在 normalize 的早退之前
+  // 就收下來。這是「重啟後 claude --resume」唯一的原料來源。
+  const identity = extractAgentIdentity(source, payload);
+  if (identity) store.setAgentIdentity(id, identity);
   const ev = normalizeHookPayload(source, payload);
   if (!ev) return;
   switch (ev.kind) {
@@ -203,12 +227,20 @@ function handleHookEvent(id: string, source: string, payload: unknown) {
 // 近期渲染文字 → 偵測 agent 並推導狀態，更新 store。
 function handleScan(id: string, text: string) {
   const store = useSessionStore.getState();
+  // 停滯偵測的心跳：有掃描就代表有輸出（極廉價，一次 Map.set + 一次早退檢查）。
+  markPtyOutput(id, Date.now());
+  store.clearStalled(id);
   const sess = store.sessions.find((x) => x.id === id);
   if (!sess) {
     clearScanState(id);
     clearApprovalSuppress(id);
+    clearStaleBusy(id);
+    clearResumeState(id);
     return;
   }
+  // 剛送出的 resume 失敗了（"No conversation found"）→ 記錄並早退：失敗訊息
+  // 不是一個待回應的提示，不該被推導成 waiting。
+  if (consumeResumeFailure(id, text)) return;
   let profileId = sess.agentId;
   if (!profileId) {
     const p = detectProfile(text);
@@ -351,6 +383,11 @@ const Pane = memo(function Pane({ session: s, rect, active, solo }: PaneProps) {
         onBusy={() => useSessionStore.getState().setStatus(s.id, "busy")}
         onIdle={() => useSessionStore.getState().setStatus(s.id, "idle")}
         onExit={() => {
+          // PTY 真的死了。若 agent 當時還在工作，這是使用者唯一會收到的訊號 ——
+          // 沒有「完成」邊緣可偵測，所以以前這條路徑完全靜默（等一個永遠不會來
+          // 的通知）。必須在 clearApproval 之前，它需要讀死前的 agentState。
+          // 刻意掛在 onExit 而非 unmount：使用者主動關 pane 不該噴中斷通知。
+          useSessionStore.getState().markInterrupted(s.id);
           // Clear any leftover agent state so dotClass falls through to the
           // "exited" status dot (agentState takes precedence over status).
           useSessionStore.getState().clearApproval(s.id);
@@ -470,6 +507,9 @@ function App() {
         for (const s of useSessionStore.getState().sessions) {
           notifyPendingPrompt(s);
         }
+        // 失焦是「使用者可能就要關掉 app 了」最早的訊號，順手寫出快照。
+        void flushSnapshot();
+        void flushScrollback();
       });
       // A workspace folder that was unreachable may have come back (volume
       // remounted) while the app was in the background. Only already-missing
@@ -477,11 +517,36 @@ function App() {
       window.addEventListener("focus", () => {
         useFolderStatusStore.getState().recheckMissing();
       });
-      // Workspaces are restored from localStorage; sessions are not — every
-      // launch starts with exactly one fresh session in the focused workspace.
-      // Via newSession (not createSession) so it picks up that workspace's
-      // persisted folder and gets expanded if it was left collapsed.
-      newSession();
+      // 關窗前把快照寫出去。用 destroy() 而非 close()，否則這個 handler 會再
+      // 觸發一次。已知不覆蓋 ⌘Q / app terminate / crash（JS 攔不住那條路），
+      // 所以快照的設計是「過期仍正確」而非「必須最新」。
+      getCurrentWindow()
+        .onCloseRequested(async (e) => {
+          if (closingWindow) return;
+          closingWindow = true;
+          e.preventDefault();
+          await flushSnapshot();
+          await flushScrollback();
+          await getCurrentWindow().destroy();
+        })
+        .catch(() => {});
+      // 通知歷史（事件日記）：通知中心本身只在記憶體、上限 50 筆，重開歸零。
+      void loadJournalEntries().then((history) => {
+        useNotificationsStore.getState().hydrate(history);
+      });
+      // 還原上次的 session 與分割佈局（PTY 一律是新的，pane 會標 restored）。
+      // 沒有快照 / 讀取失敗 / 關掉設定時走原本的「開一個新 session」。
+      // 必須在 initRegistry 之後：restore 出來的 agent pane 需要 profile 才能
+      // 決定 streamEnabled 與 resume 指令。
+      const restored = await restoreFromSnapshot();
+      if (!restored) {
+        // Via newSession (not createSession) so it picks up the focused
+        // workspace's persisted folder and expands it if left collapsed.
+        newSession();
+      }
+      startSessionPersistence();
+      startScrollbackPersistence();
+      startStaleBusyWatchdog();
       void checkForUpdateOnStartup();
     })();
   }, []);

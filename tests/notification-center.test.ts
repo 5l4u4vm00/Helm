@@ -3,6 +3,7 @@
 import assert from "node:assert";
 import {
   NOTIFICATION_CAP,
+  isWaitingKind,
   markAllNotificationsRead,
   markNotificationRead,
   pushNotification,
@@ -28,9 +29,33 @@ function make(over: Partial<AppNotification> & { kind: NotifyKind }): AppNotific
     sessionTitle: "Session 1",
     createdAt: seq,
     read: false,
-    resolved: over.kind === "done" || over.kind === "error",
+    // 鏡射 notifications.ts 的 push：非 waiting 類建立時即 resolved。
+    resolved: !isWaitingKind(over.kind),
     ...over,
   };
+}
+
+// ---- isWaitingKind：resolved 初值與桌面通知規則的共同依據 ----
+
+check(
+  "waiting 三類",
+  (["approval", "question", "plan"] as const).every((k) => isWaitingKind(k)),
+);
+check(
+  "瞬時事件不是 waiting",
+  (["done", "error", "interrupted", "stalled"] as const).every((k) => !isWaitingKind(k)),
+);
+
+// ---- interrupted / stalled：無內文的瞬時事件 ----
+
+{
+  let list: AppNotification[] = [];
+  list = pushNotification(list, make({ kind: "interrupted", sessionId: "sx" }));
+  check("interrupted 建立時即 resolved", list[0].resolved && !list[0].read);
+  const again = pushNotification(list, make({ kind: "interrupted", sessionId: "sx" }));
+  check("同 session 的 interrupted 未讀時收斂成一筆", again === list);
+  list = pushNotification(list, make({ kind: "stalled", sessionId: "sx" }));
+  check("stalled 是不同 kind，另計一筆", list.length === 2);
 }
 
 // ---- pushNotification：去重 + 上限 ----

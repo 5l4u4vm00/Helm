@@ -1,4 +1,5 @@
-// 通知中心面板：所有提醒事件（三種 waiting / done / error）的 App 內入口
+// 通知中心面板：所有提醒事件（三種 waiting / done / error / interrupted /
+// stalled）的 App 內入口
 // 與歷史（上限見 NOTIFICATION_CAP，不跨啟動保存）。由 Toolbar 的鈴鐺開關；
 // 點項目跳到該 session 並標已讀；Esc 關閉並把焦點還給終端機。
 import { useSessionStore } from "../../store/sessions";
@@ -17,6 +18,8 @@ const KIND_ICONS: Record<NotifyKind, string> = {
   plan: "☰",
   done: "✓",
   error: "✕",
+  interrupted: "⏻",
+  stalled: "⏳",
 };
 
 function fmtTime(ms: number): string {

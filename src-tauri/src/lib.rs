@@ -1,3 +1,4 @@
+mod appstore;
 mod background;
 mod config;
 mod fonts;
@@ -216,6 +217,11 @@ pub fn run() {
             pty::pty_resize,
             pty::pty_kill,
             config::read_agents_config,
+            appstore::read_app_file,
+            appstore::write_app_file,
+            appstore::append_app_file,
+            appstore::delete_app_file,
+            appstore::list_app_files,
             background::read_image_data_url,
             integrations::integration_status,
             integrations::install_claude_hooks,

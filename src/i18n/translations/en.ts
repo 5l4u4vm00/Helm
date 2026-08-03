@@ -75,7 +75,15 @@ export const en: Record<string, string> = {
   "settings.notifyWaiting": "When approval / reply is needed",
   "settings.notifyDone": "When an agent turn completes",
   "settings.notifyError": "When an agent errors",
+  "settings.notifyInterrupted": "When an agent is interrupted mid-run",
+  "settings.notifyStalled": "When an agent goes quiet for too long",
   "settings.notifyHiddenPanes": "Off-screen sessions even when focused",
+  "settings.restoreSection": "Restore on launch",
+  "settings.restoreSessions": "Restore sessions and split layout",
+  "settings.restoreScrollback": "Restore each pane's screen contents",
+  "settings.resumeAgentsOnLaunch": "Resume agent conversations automatically",
+  "settings.forgetSnapshot": "Forget saved workspace",
+  "settings.forgetSnapshotDone": "Cleared (applies next launch)",
   "settings.notifyFallbackWarning":
     "System notification authorization failed; using compatibility mode (clicking a notification cannot focus Helm): {reason}",
   "settings.notifyFallbackUnknown": "unknown (authorization may still be pending)",
@@ -146,12 +154,15 @@ export const en: Record<string, string> = {
   "notify.plan": "{label}'s plan awaits your confirmation",
   "notify.done": "{label} finished its turn",
   "notify.error": "{label} hit an error",
+  "notify.interrupted": "{label} was interrupted mid-run",
+  "notify.stalled": "{label} has gone quiet",
 
   // Notification center
   "notifCenter.title": "Notifications",
   "notifCenter.markAllRead": "Mark all read",
   "notifCenter.empty": "No notifications yet",
   "notifCenter.close": "Close",
+  "notifCenter.fromHistory": "Last launch",
 
   // Approval panel
   "approval.pending": "Pending input",
@@ -202,6 +213,12 @@ export const en: Record<string, string> = {
   "pane.splitRight": "Split right (right-click to choose agent)",
   "pane.splitDown": "Split down (right-click to choose agent)",
   "pane.close": "Close",
+  "pane.restored": "restored",
+  "pane.restoredHint":
+    "This pane was rebuilt after a restart: the screen is last session's record, the shell is new.",
+  "pane.stalled": "No output for a while — may be stuck",
+  "pane.resume": "Resume {label}'s conversation",
+  "pane.resumeUnavailable": "No conversation to resume",
 
   // Terminal spawn problems (written into the pane itself)
   "terminal.cwdFailed":
@@ -209,6 +226,11 @@ export const en: Record<string, string> = {
   "terminal.launchSkipped":
     "{command} was not started automatically, because this is not the folder you asked for. cd where you want it and run it yourself.",
   "terminal.spawnFailed": "Failed to start a shell for this session.",
+
+  // Restored scrollback block (framed as a dead record, not live output)
+  "terminal.replayHeader": "── history from your last session ──",
+  "terminal.replayFooter": "── static record above; the shell below is new ──",
+  "terminal.replayResumeHint": "── press Ctrl+A R to resume {label} ──",
 
   // Command categories
   "category.view": "View",
@@ -235,6 +257,7 @@ export const en: Record<string, string> = {
   "command.nextSession": "Next Session",
   "command.prevSession": "Previous Session",
   "command.renameSession": "Rename Session",
+  "command.resumeAgent": "Resume Agent Conversation",
   "command.switchToIndex": "Switch to Session {n}",
   "command.newWorkspace": "New Workspace",
   "command.toggleFiles": "Changed Files Panel",

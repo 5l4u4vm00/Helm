@@ -75,7 +75,15 @@ export const zhTW: Record<string, string> = {
   "settings.notifyWaiting": "需要核准／回覆時",
   "settings.notifyDone": "Agent 回合完成時",
   "settings.notifyError": "Agent 發生錯誤時",
+  "settings.notifyInterrupted": "Agent 工作中被中斷時",
+  "settings.notifyStalled": "Agent 長時間沒有回應時",
   "settings.notifyHiddenPanes": "視窗聚焦時仍通知畫面外的 session",
+  "settings.restoreSection": "重啟還原",
+  "settings.restoreSessions": "還原 session 與分割佈局",
+  "settings.restoreScrollback": "還原每個 pane 的畫面內容",
+  "settings.resumeAgentsOnLaunch": "啟動時自動接續 agent 對話",
+  "settings.forgetSnapshot": "忘記已保存的工作階段",
+  "settings.forgetSnapshotDone": "已清除（下次啟動生效）",
   "settings.notifyFallbackWarning":
     "系統通知授權失敗，目前使用相容模式（點擊通知無法聚焦 Helm）：{reason}",
   "settings.notifyFallbackUnknown": "原因不明（可能仍在等待授權）",
@@ -143,12 +151,15 @@ export const zhTW: Record<string, string> = {
   "notify.plan": "{label} 的計畫等待你確認",
   "notify.done": "{label} 回合完成",
   "notify.error": "{label} 發生錯誤",
+  "notify.interrupted": "{label} 的工作被中斷",
+  "notify.stalled": "{label} 長時間沒有回應",
 
   // Notification center
   "notifCenter.title": "通知中心",
   "notifCenter.markAllRead": "全部標為已讀",
   "notifCenter.empty": "尚無通知",
   "notifCenter.close": "關閉",
+  "notifCenter.fromHistory": "上次啟動",
 
   // Approval panel
   "approval.pending": "待處理",
@@ -199,12 +210,22 @@ export const zhTW: Record<string, string> = {
   "pane.splitRight": "向右分割（右鍵選 agent）",
   "pane.splitDown": "向下分割（右鍵選 agent）",
   "pane.close": "關閉",
+  "pane.restored": "已還原",
+  "pane.restoredHint": "這個 pane 在重啟後重建：畫面是上次的記錄，shell 是新開的。",
+  "pane.stalled": "長時間沒有輸出，可能已卡住",
+  "pane.resume": "接續 {label} 的對話",
+  "pane.resumeUnavailable": "沒有可接續的對話",
 
   // Terminal spawn problems (written into the pane itself)
   "terminal.cwdFailed": "無法在 {cwd} 啟動 shell，改由家目錄啟動。",
   "terminal.launchSkipped":
     "已略過自動啟動 {command}，因為這不是你指定的資料夾。請自行 cd 到目標目錄後再執行。",
   "terminal.spawnFailed": "無法為這個 session 啟動 shell。",
+
+  // Restored scrollback block (framed as a dead record, not live output)
+  "terminal.replayHeader": "── 上次啟動的畫面 ──",
+  "terminal.replayFooter": "── 以上為靜態記錄，shell 是新開的 ──",
+  "terminal.replayResumeHint": "── 按 Ctrl+A R 接續 {label} 的對話 ──",
 
   // Command categories
   "category.view": "檢視",
@@ -231,6 +252,7 @@ export const zhTW: Record<string, string> = {
   "command.nextSession": "下一個 Session",
   "command.prevSession": "上一個 Session",
   "command.renameSession": "重新命名 Session",
+  "command.resumeAgent": "接續 Agent 對話",
   "command.switchToIndex": "切換到第 {n} 個 Session",
   "command.newWorkspace": "新增 Workspace",
   "command.toggleFiles": "檔案變更面板",

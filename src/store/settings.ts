@@ -79,7 +79,12 @@ const KEYS = {
   notifyWaiting: "helm.notifyWaiting",
   notifyDone: "helm.notifyDone",
   notifyError: "helm.notifyError",
+  notifyInterrupted: "helm.notifyInterrupted",
+  notifyStalled: "helm.notifyStalled",
   notifyHiddenPanes: "helm.notifyHiddenPanes",
+  restoreSessions: "helm.restoreSessions",
+  restoreScrollback: "helm.restoreScrollback",
+  resumeAgentsOnLaunch: "helm.resumeAgentsOnLaunch",
   backgroundImage: "helm.backgroundImage",
   backgroundDim: "helm.backgroundDim",
 } as const;
@@ -98,8 +103,17 @@ interface SettingsState {
   notifyWaiting: boolean; // 需要核准/回覆（approval / question / plan）
   notifyDone: boolean; // agent 回合完成
   notifyError: boolean; // agent 錯誤
+  notifyInterrupted: boolean; // agent 工作中 PTY 死掉（被中斷）
+  notifyStalled: boolean; // agent 停在忙碌但長時間無輸出
   // 視窗聚焦時，畫面外 pane（不在目前分割群組）的 waiting / error 仍發桌面通知。
   notifyHiddenPanes: boolean;
+  // 重啟還原：session 清單 + 分割佈局（PTY 一律是新的，不會復活行程），
+  // 以及每個 pane 的 scrollback 快照重播。
+  restoreSessions: boolean;
+  restoreScrollback: boolean;
+  // 還原後自動對每個 agent pane 送出 resume 指令。預設關閉：一次 resume 8 個
+  // pane 會燒 token、可能撞 rate limit，且目錄搬過就滿螢幕失敗訊息。
+  resumeAgentsOnLaunch: boolean;
   // 自訂背景圖：檔案絕對路徑（""=無），與遮罩強度 0-100（越大畫面越暗，維持文字可讀）。
   backgroundImage: string;
   backgroundDim: number;
@@ -113,7 +127,12 @@ interface SettingsState {
   setNotifyWaiting: (v: boolean) => void;
   setNotifyDone: (v: boolean) => void;
   setNotifyError: (v: boolean) => void;
+  setNotifyInterrupted: (v: boolean) => void;
+  setNotifyStalled: (v: boolean) => void;
   setNotifyHiddenPanes: (v: boolean) => void;
+  setRestoreSessions: (v: boolean) => void;
+  setRestoreScrollback: (v: boolean) => void;
+  setResumeAgentsOnLaunch: (v: boolean) => void;
   setBackgroundImage: (v: string) => void;
   setBackgroundDim: (v: number) => void;
 }
@@ -142,6 +161,11 @@ function initialBool(key: string): boolean {
   return v === null ? true : v === "true";
 }
 
+/** 預設關閉的開關（沒寫過就是 false）。 */
+function initialBoolOff(key: string): boolean {
+  return localStorage.getItem(key) === "true";
+}
+
 function initialBackgroundDim(): number {
   const v = Number(localStorage.getItem(KEYS.backgroundDim));
   return Number.isFinite(v) && v >= 0 && v <= 100 ? v : DEFAULT_BACKGROUND_DIM;
@@ -158,7 +182,12 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   notifyWaiting: initialBool(KEYS.notifyWaiting),
   notifyDone: initialBool(KEYS.notifyDone),
   notifyError: initialBool(KEYS.notifyError),
+  notifyInterrupted: initialBool(KEYS.notifyInterrupted),
+  notifyStalled: initialBool(KEYS.notifyStalled),
   notifyHiddenPanes: initialBool(KEYS.notifyHiddenPanes),
+  restoreSessions: initialBool(KEYS.restoreSessions),
+  restoreScrollback: initialBool(KEYS.restoreScrollback),
+  resumeAgentsOnLaunch: initialBoolOff(KEYS.resumeAgentsOnLaunch),
   backgroundImage: localStorage.getItem(KEYS.backgroundImage) || "",
   backgroundDim: initialBackgroundDim(),
 
@@ -205,9 +234,29 @@ export const useSettingsStore = create<SettingsState>((set) => ({
     localStorage.setItem(KEYS.notifyError, String(v));
     set({ notifyError: v });
   },
+  setNotifyInterrupted: (v) => {
+    localStorage.setItem(KEYS.notifyInterrupted, String(v));
+    set({ notifyInterrupted: v });
+  },
+  setNotifyStalled: (v) => {
+    localStorage.setItem(KEYS.notifyStalled, String(v));
+    set({ notifyStalled: v });
+  },
   setNotifyHiddenPanes: (v) => {
     localStorage.setItem(KEYS.notifyHiddenPanes, String(v));
     set({ notifyHiddenPanes: v });
+  },
+  setRestoreSessions: (v) => {
+    localStorage.setItem(KEYS.restoreSessions, String(v));
+    set({ restoreSessions: v });
+  },
+  setRestoreScrollback: (v) => {
+    localStorage.setItem(KEYS.restoreScrollback, String(v));
+    set({ restoreScrollback: v });
+  },
+  setResumeAgentsOnLaunch: (v) => {
+    localStorage.setItem(KEYS.resumeAgentsOnLaunch, String(v));
+    set({ resumeAgentsOnLaunch: v });
   },
   setBackgroundImage: (v) => {
     localStorage.setItem(KEYS.backgroundImage, v);

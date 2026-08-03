@@ -14,8 +14,15 @@ use crate::pty::dirs_home;
 const MARKER: &str = "HELM_EVENT_PORT";
 
 /// 要安裝的 hook 事件（PermissionRequest = 審批、Stop = 回合結束、
-/// PostToolUse = 工具完成/檔案變更）。
-const CLAUDE_HOOK_EVENTS: [&str; 3] = ["PermissionRequest", "Stop", "PostToolUse"];
+/// PostToolUse = 工具完成/檔案變更、SessionStart = 一開場就拿到 agent 自己的
+/// session_id，供重啟後接續對話 —— 前三者也帶 session_id，但 SessionStart 讓
+/// 「還沒動過任何工具就重啟」的 session 也能接續）。
+const CLAUDE_HOOK_EVENTS: [&str; 4] = [
+    "PermissionRequest",
+    "Stop",
+    "PostToolUse",
+    "SessionStart",
+];
 
 #[cfg(not(windows))]
 fn claude_hook_command() -> String {
@@ -85,10 +92,16 @@ pub fn integration_status() -> IntegrationStatus {
     let settings = claude_settings_path()
         .and_then(|p| read_json(&p))
         .unwrap_or(json!({}));
-    let claude_hooks = settings
-        .get("hooks")
-        .map(|h| h.to_string().contains(MARKER))
-        .unwrap_or(false);
+    // 逐事件檢查而非整包搜尋 MARKER：新增事件（例如 SessionStart）時，舊安裝
+    // 必須被判為「未完整安裝」，UI 才會再顯示安裝鈕把缺的補上。整包檢查會讓他們
+    // 永遠停在舊的三個事件。
+    let claude_hooks = CLAUDE_HOOK_EVENTS.iter().all(|event| {
+        settings
+            .get("hooks")
+            .and_then(|h| h.get(event))
+            .map(|e| e.to_string().contains(MARKER))
+            .unwrap_or(false)
+    });
     let claude_statusline = statusline_state(&settings);
     // 粗略文字檢查（僅供狀態顯示）：兩個 key 都設成需要的值才算開啟。
     let codex_osc9 = codex_config_path()
@@ -135,8 +148,8 @@ fn merge_claude_hooks(settings: &mut Value, command: &str) -> Result<bool, Strin
     Ok(changed)
 }
 
-/// 把轉發 hook 合併進 ~/.claude/settings.json 的三個事件。冪等：
-/// 事件底下已有帶標記的項目就跳過。
+/// 把轉發 hook 合併進 ~/.claude/settings.json 的各個事件。冪等：
+/// 事件底下已有帶標記的項目就跳過，所以舊安裝重跑一次只會補上新增的事件。
 #[tauri::command]
 pub fn install_claude_hooks() -> Result<(), String> {
     let path = claude_settings_path()?;

@@ -40,6 +40,8 @@ export const PREFIX_TABLE: PrefixBinding[] = [
   { key: "n", commandId: "session:next" },
   { key: "p", commandId: "session:prev" },
   { key: "r", commandId: "session:rename-active" },
+  // Capital R: resume the agent conversation (lowercase r is rename).
+  { key: "R", commandId: "agent:resume" },
   ...Array.from({ length: 9 }, (_, i) => ({
     code: `Digit${i + 1}`,
     commandId: `session:switch-${i + 1}`,

@@ -19,6 +19,7 @@ import { useLanguageStore } from "../store/language";
 import { t } from "../i18n";
 import {
   activateSession,
+  canResumeActiveAgent,
   cycleSession,
   focusPane,
   focusSidebar,
@@ -28,6 +29,7 @@ import {
   resizeActivePane,
   respondActiveApproval,
   respondAllApprovals,
+  resumeActiveAgent,
   sendPrefixLiteral,
   splitActivePane,
   switchToSessionIndex,
@@ -186,6 +188,14 @@ function staticCommands(): Command[] {
       keywords: "rename session title name",
       enabled: hasActive,
       run: renameActiveSession,
+    },
+    {
+      id: "agent:resume",
+      title: t("command.resumeAgent"),
+      category: t("category.session"),
+      keywords: "resume continue agent conversation claude",
+      enabled: canResumeActiveAgent,
+      run: resumeActiveAgent,
     },
     ...numberedSwitchCommands(),
     {

@@ -30,6 +30,35 @@ export interface PlanUsage {
   sevenDayResetsAt?: number;
 }
 
+/**
+ * Agent CLI 自己的 session 身分。Claude Code 在**每一個** hook payload 與
+ * statusline JSON 裡都附上 session_id 與 transcript_path，而 normalizeHookPayload
+ * 只看 hook_event_name / tool_name / tool_input，等於把它們丟掉了 —— 那是「重啟
+ * 後 claude --resume <id>」唯一的原料來源。
+ *
+ * 刻意獨立於 normalizeHookPayload：身分不必穿過四個事件分支，而且被 normalize
+ * 丟棄的事件（SessionStart 等）也照樣能貢獻身分。
+ */
+export interface AgentIdentity {
+  agentSessionId?: string;
+  transcriptPath?: string;
+}
+
+/** 兩者皆無 → undefined（呼叫端據此完全不動 store）。 */
+export function extractAgentIdentity(source: string, payload: unknown): AgentIdentity | undefined {
+  if (!isRecord(payload)) return undefined;
+  // statusline 的 JSON 也帶 session_id（Claude Code 的 session 物件）。
+  const agentSessionId =
+    str(payload.session_id) ??
+    (isRecord(payload.session) ? str(payload.session.id) : undefined);
+  const transcriptPath = str(payload.transcript_path);
+  if (!agentSessionId && !transcriptPath) return undefined;
+  // source 目前不影響解析，但保留參數：Codex 之後若用不同欄位名，這裡是唯一
+  // 要改的地方（同 profileIdForSource 的資料驅動精神）。
+  void source;
+  return { agentSessionId, transcriptPath };
+}
+
 /** hook 安裝片段的 source 參數 → 對應的內建 profile id（未知來源回 null）。 */
 export function profileIdForSource(source: string): string | null {
   if (source === "claude-code" || source === "claude-code-statusline") return "claude-code";

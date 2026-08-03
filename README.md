@@ -178,6 +178,7 @@ Press Ctrl+A, then the second key. Esc or 3 seconds cancels; an unrecognised sec
 | `n` | Next Session |
 | `p` | Previous Session |
 | `r` | Rename Session |
+| `R` | Resume Agent Conversation |
 | `1…9` | Switch to Session 1–9 |
 | `g` | Focus Sidebar |
 | `w` | New Workspace |

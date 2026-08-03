@@ -1,9 +1,34 @@
 // 通知中心的純列表操作（無執行期 import，node 測試可直接載入）。
 // 每筆通知對應一次「值得提醒的 agent 事件」：三種 waiting（approval /
-// question / plan）、done、error。waiting 類在被回答/清除前為 unresolved；
-// done / error 是瞬時事件，建立時即 resolved（只剩已讀/未讀之分）。
+// question / plan）、done、error、interrupted、stalled。waiting 類在被回答/
+// 清除前為 unresolved；其餘都是瞬時事件，建立時即 resolved（只剩已讀/未讀
+// 之分）。
+//
+// interrupted / stalled 與 done / error 的來源不同：後兩者由狀態轉移邊緣推
+// 導（detectAgentEvent），前兩者是明確呼叫發出的 —— agent 工作中 PTY 死掉
+// 沒有「轉移」可偵測（那正是它以前完全靜默的原因），停滯更是「什麼都沒發
+// 生」。
 
-export type NotifyKind = "approval" | "question" | "plan" | "done" | "error";
+export type NotifyKind =
+  | "approval"
+  | "question"
+  | "plan"
+  | "done"
+  | "error"
+  | "interrupted"
+  | "stalled";
+
+/**
+ * 需要使用者回應的事件類型。這些通知在被回答/清除前保持 unresolved，桌面
+ * 通知也走另一套聚焦抑制規則（見 shouldDesktopNotify）。
+ * 定義在此而非 notificationRouter，讓 notifications store 不必反向 import
+ * router 就能決定 resolved 初值。
+ */
+export const WAITING_KINDS: readonly NotifyKind[] = ["approval", "question", "plan"];
+
+export function isWaitingKind(kind: NotifyKind): boolean {
+  return WAITING_KINDS.includes(kind);
+}
 
 export interface AppNotification {
   id: string;

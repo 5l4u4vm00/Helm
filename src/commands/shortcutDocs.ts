@@ -47,6 +47,7 @@ const COMMAND_TITLE_KEYS: Record<string, string> = {
   "session:next": "command.nextSession",
   "session:prev": "command.prevSession",
   "session:rename-active": "command.renameSession",
+  "agent:resume": "command.resumeAgent",
   // switch-1..9 collapse into a single "1…9" row (as in the which-key overlay).
   ...Object.fromEntries(
     Array.from({ length: 9 }, (_, i) => [`session:switch-${i + 1}`, "whichKey.switchDigits"]),

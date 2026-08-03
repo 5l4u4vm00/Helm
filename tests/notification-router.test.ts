@@ -29,6 +29,22 @@ check("done → error 不發（非忙碌來源）", detectAgentEvent("done", "er
 check("tool → error 發 error", detectAgentEvent("tool", "error", "approval") === "error");
 check("thinking → tool 不是提醒事件", detectAgentEvent("thinking", "tool", "approval") === null);
 check("同狀態不發", detectAgentEvent("done", "done", "approval") === null);
+// interrupted / stalled 刻意不從轉移推導：PTY 在 agent 工作中死掉沒有「轉移」
+// 可偵測（那正是它以前完全靜默的原因），停滯更是「什麼都沒發生」。
+check(
+  "轉移偵測永不產出 interrupted / stalled",
+  (
+    [
+      ["thinking", undefined],
+      ["tool", "error"],
+      ["waiting", "done"],
+      [undefined, "thinking"],
+    ] as const
+  ).every(([prev, next]) => {
+    const k = detectAgentEvent(prev, next, "approval");
+    return k !== "interrupted" && k !== "stalled";
+  }),
+);
 
 // ---- shouldDesktopNotify：統一 gating ----
 
@@ -144,6 +160,33 @@ check(
     "done 同內容 cooldown 內不重發",
     !shouldDesktopNotify("s5", "done", "", base, t + 2_000),
   );
+}
+
+// interrupted / stalled 與 error 共用同一條聚焦規則
+{
+  const t = T0 + 35_000;
+  const focused = { ...base, windowFocused: true, inFocusedWorkspace: false };
+  for (const kind of ["interrupted", "stalled"] as const) {
+    check(
+      `聚焦 + pane 在畫面上 → ${kind} 抑制`,
+      !shouldDesktopNotify(`s-${kind}`, kind, "", focused, t),
+    );
+    check(
+      `聚焦但 pane 不在畫面上 → ${kind} 仍通知`,
+      shouldDesktopNotify(`s-${kind}`, kind, "", { ...focused, paneVisible: false }, t + 500),
+    );
+    check(
+      `開關關閉：聚焦時 ${kind} 一律抑制`,
+      !shouldDesktopNotify(
+        `s-${kind}-off`,
+        kind,
+        "",
+        { ...focused, paneVisible: false, notifyHiddenPanes: false },
+        t + 600,
+      ),
+    );
+    check(`失焦時 ${kind} 通知`, shouldDesktopNotify(`s-${kind}-blur`, kind, "", base, t + 700));
+  }
 }
 
 // 明確回應（respondApproval）→ 清紀錄 → 同 prompt 立即再通知

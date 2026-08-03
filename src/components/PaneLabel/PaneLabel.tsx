@@ -6,6 +6,7 @@ import { useSessionStore, type Session } from "../../store/sessions";
 import { useLayoutStore } from "../../store/layout";
 import type { SplitDir } from "../../store/layoutTree";
 import { listLaunchers } from "../../agents/registry";
+import { ResumeButton } from "./ResumeButton";
 import { handleListKey, hasNonShiftModifier } from "../../focus/listNav";
 import { handleDismissKey } from "../../focus/focusUtils";
 import type { AgentLauncher } from "../../agents/types";
@@ -85,7 +86,20 @@ export const PaneLabel = memo(function PaneLabel({ session }: { session: Session
     <div className="pane-label">
       <span className={`status-dot ${dotClass(session)}`} />
       <span className="pane-title">{session.title}</span>
+      {/* 誠實標示：這個 pane 的畫面是上次的記錄，shell 是新開的。放在
+          .pane-actions 之外，才不會跟著 hover 才顯示。 */}
+      {session.restored && (
+        <span className="pane-badge" title={t("pane.restoredHint")}>
+          {t("pane.restored")}
+        </span>
+      )}
+      {session.stalled && (
+        <span className="pane-badge pane-badge-warn" title={t("pane.stalled")}>
+          ⏳
+        </span>
+      )}
       <span className="pane-actions">
+        <ResumeButton session={session} />
         {splitButton("row", "◫", t("pane.splitRight"))}
         {splitButton("column", "⊟", t("pane.splitDown"))}
         <button

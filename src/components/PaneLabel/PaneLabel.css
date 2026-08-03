@@ -20,6 +20,24 @@
   text-overflow: ellipsis;
 }
 
+/* restored / stalled 標記：一律可見（不隨 hover 出現），因為它們是在說明這個
+   pane 的畫面能不能當真。 */
+.pane-badge {
+  flex: 0 0 auto;
+  padding: 0 5px;
+  border-radius: 8px;
+  background: var(--active);
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 15px;
+  white-space: nowrap;
+}
+
+.pane-badge-warn {
+  background: #fab38722;
+  color: #fab387;
+}
+
 .pane-actions {
   margin-left: auto;
   display: flex;

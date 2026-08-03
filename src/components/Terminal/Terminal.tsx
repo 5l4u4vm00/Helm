@@ -4,7 +4,6 @@
 import { memo, useEffect, useRef } from "react";
 import { Terminal as XTerm } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
-import { CanvasAddon } from "@xterm/addon-canvas";
 import "@xterm/xterm/css/xterm.css";
 import type { UnlistenFn } from "@tauri-apps/api/event";
 import { isTauri } from "@tauri-apps/api/core";
@@ -17,6 +16,14 @@ import {
 } from "../../ipc/pty";
 import { resolveXtermTheme, useThemeStore } from "../../store/theme";
 import { decodeOsc52 } from "./osc52";
+import { attachRenderer, repaintAfterFontChange } from "./renderer";
+import { buildTermOptions } from "./termOptions";
+import { scanRows } from "./scanRows";
+import {
+  registerScrollbackSource,
+  replayScrollback,
+  unregisterScrollbackSource,
+} from "./scrollback";
 import { useSettingsStore } from "../../store/settings";
 import { SYMBOLS_NERD_FONT, withSymbolsFallback } from "../../store/fontFamily";
 import { t } from "../../i18n";
@@ -59,16 +66,30 @@ interface TerminalProps {
   onStream?: (text: string) => void;
 }
 
-// 只讀「目前可見畫面」的渲染文字（baseY 起算的 term.rows 行）。
-// 刻意不含捲動歷史：已回答並捲走的提示不該再被當成作用中的核准。
-function readBufferText(term: XTerm): string {
+// 目前可見畫面的渲染文字。列的取捨（不含捲動歷史、還原重播的 floor、
+// alt-screen 護欄）全在 scanRows 裡，見該檔的說明。
+function readBufferText(term: XTerm, scanFloor: number): string {
   const buf = term.buffer.active;
-  const out: string[] = [];
-  for (let i = 0; i < term.rows; i++) {
-    const line = buf.getLine(buf.baseY + i);
-    if (line) out.push(line.translateToString(true));
+  return scanRows(
+    (row) => buf.getLine(row)?.translateToString(true) ?? null,
+    buf.baseY,
+    term.rows,
+    scanFloor,
+    buf.type !== "normal",
+  ).join("\n");
+}
+
+/** 從 buffer.normal 抽出捲動歷史（給 scrollback 快照用；見 scrollback.ts）。 */
+function readNormalBuffer(term: XTerm): { text: string; wrapped: boolean }[] {
+  const buf = term.buffer.normal;
+  const out: { text: string; wrapped: boolean }[] = [];
+  const end = buf.length;
+  for (let row = 0; row < end; row += 1) {
+    const line = buf.getLine(row);
+    if (!line) continue;
+    out.push({ text: line.translateToString(true), wrapped: line.isWrapped });
   }
-  return out.join("\n");
+  return out;
 }
 
 function TerminalImpl({
@@ -126,19 +147,16 @@ function TerminalImpl({
     if (!container) return;
 
     const settings = useSettingsStore.getState();
-    const term = new XTerm({
-      fontFamily: withSymbolsFallback(settings.fontFamily),
-      fontSize: settings.fontSize,
-      cursorStyle: settings.cursorStyle,
-      cursorBlink: settings.cursorBlink,
-      allowProposedApi: true,
-      allowTransparency: true,
-      theme: resolveXtermTheme(
-        useThemeStore.getState().name,
-        useThemeStore.getState().customThemes,
-        !!settings.backgroundImage,
+    const term = new XTerm(
+      buildTermOptions(
+        settings,
+        resolveXtermTheme(
+          useThemeStore.getState().name,
+          useThemeStore.getState().customThemes,
+          !!settings.backgroundImage,
+        ),
       ),
-    });
+    );
     // xterm.js 不對映 Ctrl+/ → 0x1F(^_);補上讓 nvim 的 <C-/> 綁定可用。
     term.attachCustomKeyEventHandler((e) => {
       if (
@@ -165,14 +183,11 @@ function TerminalImpl({
     const fitAddon = new FitAddon();
     term.loadAddon(fitAddon);
     term.open(container);
-    try {
-      term.loadAddon(new CanvasAddon());
-    } catch {
-      /* fall back to the built-in DOM renderer */
-    }
+    const renderer = attachRenderer(term);
     fitAddon.fit();
     termRef.current = term;
     fitRef.current = fitAddon;
+    registerScrollbackSource(id, () => readNormalBuffer(term));
 
     // PTY 尺寸的唯一同步點:任何 fit() 路徑(ResizeObserver、alt-screen 切換、
     // 字型載入/變更、visible/focus refit)只要實際改變格子數就會經 onResize
@@ -222,6 +237,9 @@ function TerminalImpl({
     // 活動燈 + agent 掃描（皆 debounce）。
     let idleTimer: ReturnType<typeof setTimeout> | undefined;
     let scanTimer: ReturnType<typeof setTimeout> | undefined;
+    // 還原重播的界線：重播內容之後第一列的絕對列號（0 = 沒有重播）。
+    // 掃描要跳過它以下的列，否則第一次真實掃描會從上次的畫面撈出過期提示。
+    let scanFloor = 0;
     const onOutput = () => {
       // Leading-edge busy: onBusy fires once per busy period (first chunk),
       // not per chunk — the idle timeout re-arms it.
@@ -234,7 +252,7 @@ function TerminalImpl({
       if (scanTimer) clearTimeout(scanTimer);
       scanTimer = setTimeout(
         () => {
-          cbRef.current.onScan?.(readBufferText(term));
+          cbRef.current.onScan?.(readBufferText(term, scanFloor));
         },
         visibleRef.current ? SCAN_DEBOUNCE_VISIBLE_MS : SCAN_DEBOUNCE_HIDDEN_MS,
       );
@@ -253,13 +271,7 @@ function TerminalImpl({
     // immediately.
     void document.fonts.load(`${settings.fontSize}px ${SYMBOLS_NERD_FONT}`).then(() => {
       if (disposed) return;
-      try {
-        term.clearTextureAtlas();
-        fitAddon.fit();
-        term.refresh(0, term.rows - 1);
-      } catch {
-        /* ignore */
-      }
+      repaintAfterFontChange(term, fitAddon);
     });
 
     const effectiveShell = shell ?? (settings.defaultShell || undefined);
@@ -305,6 +317,13 @@ function TerminalImpl({
         term.write("\r\n\x1b[2m[process exited]\x1b[0m\r\n");
         cbRef.current.onExit?.();
       }).catch(() => undefined);
+      if (disposed) return;
+
+      // 還原：重播上次的畫面並取得 scan floor。必須在 spawnPty 之前 —— term.write
+      // 是有序的，所以之後的 PTY 位元組不可能插進重播區塊；而重播用裸 write，
+      // 不經過 onOutput，因此 onBusy/onIdle/onScan/onStream 與 OSC handler 全都
+      // 不會被這些歷史文字觸發。
+      scanFloor = await replayScrollback(term, id);
       if (disposed) return;
 
       // A persisted workspace folder can point at an unmounted volume or a
@@ -400,6 +419,8 @@ function TerminalImpl({
       osc52Disposable.dispose();
       bufferDisposable.dispose();
       dataDisposable.dispose();
+      unregisterScrollbackSource(id);
+      renderer.dispose();
       unlistenExit?.();
       void ptyKill(id);
       term.dispose();
@@ -456,18 +477,7 @@ function TerminalImpl({
     term.options.fontSize = fontSize;
     term.options.cursorStyle = cursorStyle;
     term.options.cursorBlink = cursorBlink;
-    try {
-      // Drop the canvas renderer's cached glyph atlas so the new font is
-      // redrawn. Changing only fontFamily (same size) leaves cols/rows
-      // unchanged, so fit() is a no-op and the stale glyphs would otherwise
-      // stay on screen — "picked a font, nothing changed" on macOS.
-      term.clearTextureAtlas();
-      fit.fit();
-      // Force a repaint of the visible rows even when dimensions didn't change.
-      term.refresh(0, term.rows - 1);
-    } catch {
-      /* ignore */
-    }
+    repaintAfterFontChange(term, fit);
   }, [fontFamily, fontSize, cursorStyle, cursorBlink]);
 
   // 版面（single/grid、顯示與否）由外層 pane 控制；這裡只填滿容器。

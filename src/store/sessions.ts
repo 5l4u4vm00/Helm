@@ -6,15 +6,19 @@ import { resolveFocusedWorkspace } from "./workspaceGroups";
 import {
   clearNotifyDedupe,
   detectAgentEvent,
+  isBusyState,
   shouldDesktopNotify,
   type DesktopNotifyContext,
 } from "./notificationRouter";
 import { useNotificationsStore } from "./notifications";
-import type { NotifyKind } from "./notificationCenter";
+import { isWaitingKind, type NotifyKind } from "./notificationCenter";
+import { appendAgentSessionId } from "./agentIdentity";
 import { clearApprovalSuppress } from "./approvalSuppress";
 import { mergeChangedFile } from "./changedFiles";
 import { clearScanState } from "./scanState";
-import { resolveRename, shouldAcceptAutoTitle } from "./sessionTitle";
+import { clearStaleBusy } from "./staleBusy";
+import { clearResumeState } from "./resumeState";
+import { nextSessionTitle, resolveRename, shouldAcceptAutoTitle } from "./sessionTitle";
 import { useSettingsStore } from "./settings";
 import { notify } from "../ipc/notify";
 import { getProfile } from "../agents/registry";
@@ -43,6 +47,17 @@ export interface Session {
   // plan 只發桌面通知（兩者都不顯示 Approve，避免隨便選中第一個選項）。
   pendingPrompt?: { kind: "question" | "plan"; text: string };
   launchCommand?: string; // 啟動時送進 PTY 的指令
+  // agent CLI 自己的 session id（hook payload 的 session_id），append-only：
+  // 尾端最新，只增不減（見 agentIdentity.ts 的理由）。用來組出 resume 指令。
+  agentSessionIds?: string[];
+  transcriptPath?: string; // hook payload 的 transcript_path；純診斷用，不 gate 任何行為
+  // 這個 pane 是重啟後從快照重建的：畫面是上次的記錄，PTY 是新開的。
+  // 執行期衍生旗標，刻意不寫進快照（否則資料格式等於宣告「還原＝行程已死」，
+  // 未來由 daemon 接回活著的 PTY 時就得改格式）。
+  restored?: boolean;
+  // 停在忙碌但長時間沒有輸出。刻意不做成 AgentState —— 那會連帶波及 fleet
+  // chips、狀態燈 CSS 與 sidebar.state.* 等一整排對映。
+  stalled?: boolean;
   // ---- 本次執行的用量/變更（不持久化，重跑歸零）----
   cost?: number;
   tokensIn?: number;
@@ -68,6 +83,19 @@ interface SessionState {
   setDetectedAgent: (id: string, profileId: string, label: string) => void;
   setAgentState: (id: string, state: AgentState, prompt?: string, kind?: PromptKind) => void;
   clearApproval: (id: string) => void;
+  /** hook payload 帶回來的 agent 身分（session_id / transcript_path）。 */
+  setAgentIdentity: (
+    id: string,
+    identity: { agentSessionId?: string; transcriptPath?: string },
+  ) => void;
+  /** PTY 在 agent 工作中死掉 → interrupted 提醒（不是工作中則什麼都不做）。 */
+  markInterrupted: (id: string) => void;
+  /** 停滯偵測命中 → stalled 提醒（一次停滯只發一次）。 */
+  markStalled: (id: string) => void;
+  /** 又有輸出了 → 清掉停滯標記。 */
+  clearStalled: (id: string) => void;
+  /** 從快照批次還原（一次 set，不搶 activeId —— 呼叫端已算好）。 */
+  restoreSessions: (input: { sessions: Session[]; activeId: string | null }) => void;
   setUsage: (
     id: string,
     usage: {
@@ -81,8 +109,6 @@ interface SessionState {
   addChangedFile: (id: string, file: ChangedFile) => void;
 }
 
-let counter = 0;
-
 // 比較兩個 PlanUsage 是否等值（四個子欄位皆相同），用於 setUsage 的短路檢查。
 function samePlanUsage(a?: PlanUsage, b?: PlanUsage): boolean {
   if (a === b) return true;
@@ -95,11 +121,25 @@ function samePlanUsage(a?: PlanUsage, b?: PlanUsage): boolean {
   );
 }
 
+// 事件類型 → settings 的類型開關。查表而非三元式串接：新增 NotifyKind 時
+// TS 會直接指出這張表缺一項，而串接的三元式只會默默沿用最後一個 fallback。
+const NOTIFY_TOGGLE_KEYS: Record<
+  NotifyKind,
+  "notifyWaiting" | "notifyDone" | "notifyError" | "notifyInterrupted" | "notifyStalled"
+> = {
+  approval: "notifyWaiting",
+  question: "notifyWaiting",
+  plan: "notifyWaiting",
+  done: "notifyDone",
+  error: "notifyError",
+  interrupted: "notifyInterrupted",
+  stalled: "notifyStalled",
+};
+
 /** 桌面通知 gating 所需的環境：類型開關（settings）+ 視窗焦點 + workspace/pane 歸屬。 */
 function desktopNotifyContext(sess: Session, kind: NotifyKind): DesktopNotifyContext {
   const st = useSettingsStore.getState();
-  const perKind =
-    kind === "done" ? st.notifyDone : kind === "error" ? st.notifyError : st.notifyWaiting;
+  const perKind = st[NOTIFY_TOGGLE_KEYS[kind]];
   const { sessions, activeId } = useSessionStore.getState();
   // 畫面上的 pane = active 的分割群組成員；未分組時只有 active 自己
   //（與 Toolbar 的派工對象同一套定義）。
@@ -147,7 +187,7 @@ function emitAgentEvent(sess: Session, kind: NotifyKind): void {
     agentLabel: sess.agentLabel,
     text: sess.pendingPrompt?.text ?? sess.pendingApproval,
   });
-  if (kind === "done" || kind === "error") {
+  if (!isWaitingKind(kind)) {
     if (shouldDesktopNotify(sess.id, kind, "", desktopNotifyContext(sess, kind), Date.now())) {
       notify(sess.id, t(`notify.${kind}`, { label: sess.agentLabel ?? "Agent" }), sess.title);
     }
@@ -166,7 +206,9 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     const { sessions, activeId } = get();
     const session: Session = {
       id,
-      title: launcher?.label ?? `Session ${++counter}`,
+      // 標題編號從既有清單推導（同 nextWorkspaceName）：module counter 撐不過
+      // 重啟，還原 3 個 session 之後新建的又會叫 "Session 1"。
+      title: launcher?.label ?? nextSessionTitle(sessions),
       status: "idle",
       createdAt: Date.now(),
       workspaceId: workspaceId ?? resolveFocusedWorkspace(sessions, activeId),
@@ -195,6 +237,8 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     clearNotifyDedupe(id);
     clearApprovalSuppress(id);
     clearScanState(id);
+    clearStaleBusy(id);
+    clearResumeState(id);
     useNotificationsStore.getState().resolveSession(id);
   },
 
@@ -301,6 +345,56 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       ),
     }));
     useNotificationsStore.getState().resolveSession(id);
+  },
+
+  // 跑在 hook 事件頻率上：id 已是最新一筆且 transcript 沒變就不動 store。
+  setAgentIdentity: (id, identity) => {
+    const cur = get().sessions.find((x) => x.id === id);
+    if (!cur) return;
+    const ids = appendAgentSessionId(cur.agentSessionIds, identity.agentSessionId);
+    const transcriptPath = identity.transcriptPath ?? cur.transcriptPath;
+    if (ids === cur.agentSessionIds && transcriptPath === cur.transcriptPath) return;
+    set((s) => ({
+      sessions: s.sessions.map((x) =>
+        x.id === id
+          ? { ...x, agentSessionIds: ids ? [...ids] : undefined, transcriptPath }
+          : x,
+      ),
+    }));
+  },
+
+  // PTY 死掉時只有「agent 還在工作」才算被中斷 —— 使用者自己打 exit 離開
+  // shell、或 agent 早就 done 了，都不該吵。刻意不改 agentState：狀態燈由
+  // onExit 的 setStatus("exited") 接手，這裡只負責發事件。
+  markInterrupted: (id) => {
+    const sess = get().sessions.find((x) => x.id === id);
+    if (!sess || !isBusyState(sess.agentState)) return;
+    emitAgentEvent(sess, "interrupted");
+  },
+
+  markStalled: (id) => {
+    const cur = get().sessions.find((x) => x.id === id);
+    if (!cur || cur.stalled) return;
+    set((s) => ({
+      sessions: s.sessions.map((x) => (x.id === id ? { ...x, stalled: true } : x)),
+    }));
+    const sess = get().sessions.find((x) => x.id === id);
+    if (sess) emitAgentEvent(sess, "stalled");
+  },
+
+  clearStalled: (id) => {
+    const cur = get().sessions.find((x) => x.id === id);
+    if (!cur || !cur.stalled) return;
+    set((s) => ({
+      sessions: s.sessions.map((x) => (x.id === id ? { ...x, stalled: false } : x)),
+    }));
+  },
+
+  // 一次置換：Terminal 的主 effect 依賴 [id, cwd, shell, launchCommand]，先建
+  // session 再補 cwd 會讓它 teardown + ptyKill + 重開一次 PTY。
+  restoreSessions: ({ sessions, activeId }) => {
+    if (sessions.length === 0) return;
+    set({ sessions, activeId: activeId ?? sessions[0].id });
   },
 
   setUsage: (id, usage) => {

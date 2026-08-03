@@ -125,6 +125,18 @@
   color: #f38ba8;
 }
 
+/* Interrupted: the agent died mid-run — same alarm colour as error. */
+.notif-icon.kind-interrupted {
+  background: #f38ba833;
+  color: #f38ba8;
+}
+
+/* Stalled: not an error yet, just suspicious silence. */
+.notif-icon.kind-stalled {
+  background: #fab38733;
+  color: #fab387;
+}
+
 .notif-main {
   flex: 1 1 auto;
   min-width: 0;

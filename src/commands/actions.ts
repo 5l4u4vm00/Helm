@@ -236,6 +236,25 @@ export function resizeActivePane(dir: NavDir): void {
   }
 }
 
+/**
+ * 這個 session 有沒有可接續的 agent 對話。衍生而非儲存：條件是「有 agent、目前
+ * 沒在跑、且 profile 加上記下來的 agent session id 能組出一條指令」。
+ * 實作歸屬：W-06 feat/agent-resume。
+ */
+export function canResumeActiveAgent(): boolean {
+  return false; // W-06
+}
+
+/**
+ * 把 resume 指令寫進**現有** PTY（沿用 respondActiveApproval 的 ptyWrite 慣例）。
+ * 刻意不改活著的 session 的 launchCommand —— 它在 Terminal 主 effect 的 deps 裡，
+ * 改它等於 teardown + ptyKill + 重開一條 PTY。
+ * 實作歸屬：W-06 feat/agent-resume。
+ */
+export function resumeActiveAgent(): void {
+  // W-06
+}
+
 /** screen-style C-a a / C-a C-a: write a literal Ctrl+A (0x01) to the active PTY. */
 export function sendPrefixLiteral(): void {
   const { activeId } = useSessionStore.getState();

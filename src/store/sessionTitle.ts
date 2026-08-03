@@ -20,6 +20,24 @@ export function shouldAcceptAutoTitle(cur: TitleState, next: string): boolean {
   return cur.title !== next;
 }
 
+/** Default title prefix; `Session 3` is the third free number, not the third
+ *  session ever created. */
+const DEFAULT_TITLE_PREFIX = "Session ";
+
+/** Next default title, derived from the existing list rather than a module
+ *  counter — the same reason `nextWorkspaceName` works that way. A counter
+ *  resets on relaunch, so after restoring three sessions the next new one
+ *  would collide with `Session 1`. */
+export function nextSessionTitle(sessions: readonly TitleState[]): string {
+  let max = 0;
+  for (const s of sessions) {
+    if (!s.title.startsWith(DEFAULT_TITLE_PREFIX)) continue;
+    const n = Number(s.title.slice(DEFAULT_TITLE_PREFIX.length));
+    if (Number.isInteger(n) && n > max) max = n;
+  }
+  return `${DEFAULT_TITLE_PREFIX}${max + 1}`;
+}
+
 export type RenameResult = { kind: "set"; title: string } | { kind: "unlock" };
 
 /** Interpret what the user typed into the rename box. Clearing the name is

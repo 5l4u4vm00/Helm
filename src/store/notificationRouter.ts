@@ -4,10 +4,21 @@
 // 2. shouldDesktopNotify —— 桌面通知的統一 gating（開關 → 聚焦抑制 → 去重
 //    冷卻），取代原本分散在 sessions.ts / approvalNotify.ts 的判斷。
 import type { AgentState, PromptKind } from "../agents/types";
-import type { NotifyKind } from "./notificationCenter";
+// .ts 副檔名：isWaitingKind 是執行期 import（不再是 type-only），node 的
+// strip-types 模式需要明確副檔名才解析得到。
+import { isWaitingKind, type NotifyKind } from "./notificationCenter.ts";
 
 /** done / error 只在「真的跑過」之後提醒：前一狀態必須是忙碌中。 */
 const BUSY_STATES: readonly AgentState[] = ["thinking", "tool", "waiting"];
+
+/**
+ * 這個狀態算不算「agent 正在工作」。除了本檔的邊緣判定，也是
+ * markInterrupted / stale-busy watchdog 的判斷依據 —— 三處必須同一套定義，
+ * 否則「工作中被中斷」的門檻會各自漂移。
+ */
+export function isBusyState(state: AgentState | undefined): boolean {
+  return state !== undefined && BUSY_STATES.includes(state);
+}
 
 /**
  * 狀態轉移 → 提醒事件。規則：
@@ -32,8 +43,6 @@ export function detectAgentEvent(
 
 /** 同 session+kind 的相同內容，冷卻期內不重發（state flapping 抑制）。 */
 export const NOTIFY_COOLDOWN_MS = 120_000;
-
-const WAITING_KINDS: readonly NotifyKind[] = ["approval", "question", "plan"];
 
 /** 每個 session+kind 最近一次已送出的桌面通知。 */
 const lastNotified = new Map<string, { text: string; at: number }>();
@@ -62,8 +71,9 @@ export interface DesktopNotifyContext {
  * - waiting 類：視窗聚焦時，notifyHiddenPanes 開啟 → 只有 pane 在畫面上才
  *   抑制（提示就在終端裡）；關閉 → 沿用舊規則，聚焦 workspace 即抑制
  *   （ApprovalPanel / 側欄徽章已在畫面上），其他 workspace 仍要發。
- * - error：視窗聚焦時，notifyHiddenPanes 開啟且 pane 不在畫面上 → 仍發；
- *   否則抑制。
+ * - error / interrupted / stalled：視窗聚焦時，notifyHiddenPanes 開啟且 pane
+ *   不在畫面上 → 仍發；否則抑制。三者共用同一條規則 —— 它們都是「出事了、
+ *   但畫面上不一定看得出來」的事件。
  * - done：視窗聚焦即抑制（狀態點與通知中心已足夠）。
  * - 通過後查去重：同 session+kind 的相同內容於冷卻期內不重發。
  */
@@ -77,7 +87,7 @@ export function shouldDesktopNotify(
   if (!ctx.enabled) return false;
   if (ctx.windowFocused) {
     if (kind === "done") return false;
-    if (!WAITING_KINDS.includes(kind)) {
+    if (!isWaitingKind(kind)) {
       if (!ctx.notifyHiddenPanes || ctx.paneVisible) return false;
     } else if (ctx.notifyHiddenPanes ? ctx.paneVisible : ctx.inFocusedWorkspace) {
       return false;

@@ -1,7 +1,11 @@
 // Hook 事件正規化與 hook-waiting 寬限的純函式測試（不需 GUI / Tauri）。
 // 執行：node --experimental-strip-types tests/agent-hook-events.test.ts
 import assert from "node:assert";
-import { normalizeHookPayload, profileIdForSource } from "../src/agents/hookEvents.ts";
+import {
+  extractAgentIdentity,
+  normalizeHookPayload,
+  profileIdForSource,
+} from "../src/agents/hookEvents.ts";
 import { deriveNotifySignal } from "../src/agents/engine.ts";
 import { BUILTIN_PROFILES } from "../src/agents/builtins.ts";
 import {
@@ -251,5 +255,42 @@ check(
     deriveNotifySignal(claude, "Approval requested: x") === undefined,
   );
 }
+
+// ---- extractAgentIdentity：resume 的原料 ----
+
+{
+  const id = extractAgentIdentity("claude-code", {
+    hook_event_name: "PostToolUse",
+    session_id: "abc-123",
+    transcript_path: "/Users/x/.claude/projects/p/abc-123.jsonl",
+    tool_name: "Edit",
+  });
+  check("一般 hook payload 取得 session_id", id?.agentSessionId === "abc-123");
+  check("同時取得 transcript_path", id?.transcriptPath?.endsWith("abc-123.jsonl") === true);
+}
+
+check(
+  "SessionStart 被 normalize 丟棄，但身分照樣收得到",
+  normalizeHookPayload("claude-code", {
+    hook_event_name: "SessionStart",
+    session_id: "s-1",
+  }) === undefined &&
+    extractAgentIdentity("claude-code", {
+      hook_event_name: "SessionStart",
+      session_id: "s-1",
+    })?.agentSessionId === "s-1",
+);
+
+check(
+  "statusline 的 session 物件也帶 id",
+  extractAgentIdentity("claude-code-statusline", { session: { id: "s-2" } })?.agentSessionId ===
+    "s-2",
+);
+check("兩者皆無 → undefined（呼叫端完全不動 store）", extractAgentIdentity("claude-code", { hook_event_name: "Stop" }) === undefined);
+check("非物件 payload → undefined", extractAgentIdentity("claude-code", "nope") === undefined);
+check(
+  "空字串 id 不算",
+  extractAgentIdentity("claude-code", { session_id: "" }) === undefined,
+);
 
 console.log(`\nagent-hook-events: ${passed} checks passed`);
