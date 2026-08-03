@@ -21,6 +21,10 @@ interface TermOptionsInput {
 /**
  * ⚠️ allowProposedApi 與 allowTransparency 都是必要的，不可為了精簡拿掉：
  * 前者是 buffer/parser 等 addon 級 API 的開關，後者讓自訂背景圖能透出。
+ *
+ * allowTransparency 是已知的繪製成本（xterm.js 自己的文件就標了會影響效能：
+ * 每格都得先清空再疊字，不能靠不透明底色直接覆蓋）。這是背景圖功能的必要代價，
+ * 調 renderer 效能時不要誤以為它是可以順手拿掉的旋鈕。
  */
 export function buildTermOptions(input: TermOptionsInput, theme: ITheme): ITerminalOptions {
   return {
