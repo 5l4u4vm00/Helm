@@ -58,6 +58,9 @@ export const en: Record<string, string> = {
   "settings.fontFamilyCustom": "Custom…",
   "settings.fontFamilyCustomValue": "Custom font family",
   "settings.fontSize": "Font size",
+  "settings.scrollback": "Scrollback lines",
+  "settings.scrollbackHint":
+    "How many lines of history each session keeps. Larger values use more memory.",
   "settings.cursorStyle": "Cursor style",
   "settings.cursorStyleBlock": "Block",
   "settings.cursorStyleBar": "Bar",
@@ -209,6 +212,10 @@ export const en: Record<string, string> = {
   "terminal.launchSkipped":
     "{command} was not started automatically, because this is not the folder you asked for. cd where you want it and run it yourself.",
   "terminal.spawnFailed": "Failed to start a shell for this session.",
+  "terminal.search.placeholder": "Find in terminal",
+  "terminal.search.label": "Find in terminal",
+  "terminal.search.close": "Close find bar",
+  "terminal.search.noResults": "No results",
 
   // Command categories
   "category.view": "View",
@@ -255,6 +262,7 @@ export const en: Record<string, string> = {
   "command.newSessionWith": "New Session: {label}",
   "command.splitRightWith": "Split Right: {label}",
   "command.splitDownWith": "Split Down: {label}",
+  "command.terminalSearch": "Find in Terminal",
   "command.sendCtrlA": "Send Ctrl+A to Terminal",
   "command.shortcutsHelp": "Keyboard Shortcuts",
 

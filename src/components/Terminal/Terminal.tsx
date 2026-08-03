@@ -1,10 +1,13 @@
 // xterm.js 終端面板：掛載後開一條 PTY，串接輸入/輸出/resize。
 // 多實例：隱藏時仍保留掛載（PTY 續跑、scrollback 保留），顯示時 refit。
 // agent 感知：輸出後 debounce 讀取已渲染的 buffer 文字餵給 onScan。
-import { memo, useEffect, useRef } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import { Terminal as XTerm } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { CanvasAddon } from "@xterm/addon-canvas";
+import { SearchAddon } from "@xterm/addon-search";
+import { Unicode11Addon } from "@xterm/addon-unicode11";
+import { WebLinksAddon } from "@xterm/addon-web-links";
 import "@xterm/xterm/css/xterm.css";
 import type { UnlistenFn } from "@tauri-apps/api/event";
 import { isTauri } from "@tauri-apps/api/core";
@@ -15,10 +18,14 @@ import {
   ptySpawn,
   ptyWrite,
 } from "../../ipc/pty";
+import { openExternalUrl } from "../../ipc/opener";
 import { resolveXtermTheme, useThemeStore } from "../../store/theme";
 import { decodeOsc52 } from "./osc52";
 import { useSettingsStore } from "../../store/settings";
 import { SYMBOLS_NERD_FONT, withSymbolsFallback } from "../../store/fontFamily";
+import { useUiStore } from "../../store/ui";
+import { TerminalSearchBar } from "./TerminalSearchBar";
+import { focusActiveTerminal } from "../../focus/focusUtils";
 import { t } from "../../i18n";
 import "./Terminal.css";
 
@@ -91,6 +98,8 @@ function TerminalImpl({
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<XTerm | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
+  // State (not a ref): the search bar must re-render once the addon exists.
+  const [searchAddon, setSearchAddon] = useState<SearchAddon | null>(null);
   const themeName = useThemeStore((s) => s.name);
   const customThemes = useThemeStore((s) => s.customThemes);
   // 有自訂背景圖時終端底色改為透明，讓背景圖透出（見 resolveXtermTheme / App.css）。
@@ -131,6 +140,7 @@ function TerminalImpl({
       fontSize: settings.fontSize,
       cursorStyle: settings.cursorStyle,
       cursorBlink: settings.cursorBlink,
+      scrollback: settings.scrollback,
       allowProposedApi: true,
       allowTransparency: true,
       theme: resolveXtermTheme(
@@ -164,12 +174,30 @@ function TerminalImpl({
     });
     const fitAddon = new FitAddon();
     term.loadAddon(fitAddon);
+    // Unicode 11 寬度表(CJK 全形、emoji)必須在 open() 之前生效,否則首次
+    // 量測會用內建的 v6 表,中文/emoji 會算錯欄寬導致游標錯位。
+    try {
+      term.loadAddon(new Unicode11Addon());
+      term.unicode.activeVersion = "11";
+    } catch {
+      /* keep xterm's built-in v6 width tables */
+    }
     term.open(container);
     try {
       term.loadAddon(new CanvasAddon());
     } catch {
       /* fall back to the built-in DOM renderer */
     }
+    // 終端機輸出是不可信內容,連結一律交給 openExternalUrl 過濾 scheme 後
+    // 用系統瀏覽器開啟(window.open 會開在 webview 內)。
+    try {
+      term.loadAddon(new WebLinksAddon((_event, uri) => void openExternalUrl(uri)));
+    } catch {
+      /* URLs stay as plain text */
+    }
+    const searchAddonInstance = new SearchAddon();
+    term.loadAddon(searchAddonInstance);
+    setSearchAddon(searchAddonInstance);
     fitAddon.fit();
     termRef.current = term;
     fitRef.current = fitAddon;
@@ -401,6 +429,7 @@ function TerminalImpl({
       bufferDisposable.dispose();
       dataDisposable.dispose();
       unlistenExit?.();
+      setSearchAddon(null);
       void ptyKill(id);
       term.dispose();
       termRef.current = null;
@@ -443,6 +472,21 @@ function TerminalImpl({
     if (term) term.options.theme = resolveXtermTheme(themeName, customThemes, bgImageActive);
   }, [themeName, customThemes, bgImageActive]);
 
+  // 只有「正在搜尋的那個 session」顯示搜尋列;關閉時把焦點還給終端機。
+  const searchOpen = useUiStore((s) => s.searchSessionId === id);
+  const closeSearch = () => {
+    useUiStore.getState().setSearchSessionId(null);
+    focusActiveTerminal();
+  };
+
+  // 回捲行數變更：自成一個 effect。改 scrollback 不影響 cell 尺寸,不需要
+  // 字型那條路徑的 clearTextureAtlas()/fit()/refresh() 重繪成本。
+  const scrollback = useSettingsStore((s) => s.scrollback);
+  useEffect(() => {
+    const term = termRef.current;
+    if (term) term.options.scrollback = scrollback;
+  }, [scrollback]);
+
   // 字型/游標設定變更：套用到已存在的 term，並重新 fit（字型大小會改變 cell 尺寸）。
   const fontFamily = useSettingsStore((s) => s.fontFamily);
   const fontSize = useSettingsStore((s) => s.fontSize);
@@ -471,7 +515,16 @@ function TerminalImpl({
   }, [fontFamily, fontSize, cursorStyle, cursorBlink]);
 
   // 版面（single/grid、顯示與否）由外層 pane 控制；這裡只填滿容器。
-  return <div className="terminal-pane" ref={containerRef} />;
+  // 搜尋列是 containerRef 的 sibling:xterm 會把自己掛進 containerRef,
+  // 放進去會落在 .xterm 內而讓 Ctrl+A 被判成終端機輸入(見 keyTarget.ts)。
+  return (
+    <div className="terminal-pane">
+      <div className="terminal-host" ref={containerRef} />
+      {searchOpen && (
+        <TerminalSearchBar search={searchAddon} onClose={closeSearch} />
+      )}
+    </div>
+  );
 }
 
 // The comparator ignores the callback props on purpose: they are read through

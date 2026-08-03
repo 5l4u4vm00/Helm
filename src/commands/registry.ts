@@ -243,6 +243,17 @@ function staticCommands(): Command[] {
       },
     },
     {
+      id: "terminal:search",
+      title: t("command.terminalSearch"),
+      category: t("category.view"),
+      keywords: "search find buffer scrollback text",
+      enabled: hasActive,
+      run: () => {
+        const activeId = useSessionStore.getState().activeId;
+        if (activeId) useUiStore.getState().setSearchSessionId(activeId);
+      },
+    },
+    {
       id: "approval:approve-active",
       title: t("command.approveActive"),
       category: t("category.approval"),

@@ -19,6 +19,8 @@ import {
   FONT_FAMILY_PRESETS,
   FONT_SIZE_MAX,
   FONT_SIZE_MIN,
+  SCROLLBACK_MAX,
+  SCROLLBACK_MIN,
   type CursorStyle,
 } from "../../store/settings";
 import { firstFontFamily, toFontFamilyValue } from "../../store/fontFamily";
@@ -272,6 +274,7 @@ function SettingsDialogInner() {
   const fontSize = useSettingsStore((s) => s.fontSize);
   const cursorStyle = useSettingsStore((s) => s.cursorStyle);
   const cursorBlink = useSettingsStore((s) => s.cursorBlink);
+  const scrollback = useSettingsStore((s) => s.scrollback);
   const defaultShell = useSettingsStore((s) => s.defaultShell);
   const defaultCwd = useSettingsStore((s) => s.defaultCwd);
   const notificationsEnabled = useSettingsStore((s) => s.notificationsEnabled);
@@ -285,6 +288,7 @@ function SettingsDialogInner() {
   const setFontSize = useSettingsStore((s) => s.setFontSize);
   const setCursorStyle = useSettingsStore((s) => s.setCursorStyle);
   const setCursorBlink = useSettingsStore((s) => s.setCursorBlink);
+  const setScrollback = useSettingsStore((s) => s.setScrollback);
   const setDefaultShell = useSettingsStore((s) => s.setDefaultShell);
   const setDefaultCwd = useSettingsStore((s) => s.setDefaultCwd);
   const setNotificationsEnabled = useSettingsStore((s) => s.setNotificationsEnabled);
@@ -666,6 +670,23 @@ function SettingsDialogInner() {
                   }}
                 />
               </label>
+
+              <label className="settings-row">
+                <span>{t("settings.scrollback")}</span>
+                <input
+                  type="number"
+                  min={SCROLLBACK_MIN}
+                  max={SCROLLBACK_MAX}
+                  step={1000}
+                  value={scrollback}
+                  onChange={(e) => {
+                    const v = Number(e.target.value);
+                    // setScrollback 會夾在 SCROLLBACK_MIN/MAX 內；輸入中的空字串（NaN）略過。
+                    if (v > 0) setScrollback(v);
+                  }}
+                />
+              </label>
+              <p className="settings-hint">{t("settings.scrollbackHint")}</p>
 
               <label className="settings-row">
                 <span>{t("settings.cursorStyle")}</span>

@@ -66,6 +66,7 @@ const COMMAND_TITLE_KEYS: Record<string, string> = {
   "focus:cycle-region-back": "command.cycleFocusRegionBack",
   "focus:terminal": "command.focusTerminal",
   "focus:sidebar": "command.focusSidebar",
+  "terminal:search": "command.terminalSearch",
   "terminal:send-prefix": "command.sendCtrlA",
   "help:shortcuts": "command.shortcutsHelp",
 };
