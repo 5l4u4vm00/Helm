@@ -79,6 +79,34 @@ let bootstrapped = false;
 // 兩次關閉鈕會，第二次不該再 flush 一輪）。
 let closingWindow = false;
 
+/**
+ * 關窗前把快照寫出去。用 destroy() 而非 close()，否則這個 handler 會再觸發一次。
+ * 已知不覆蓋 ⌘Q / app terminate / crash（JS 攔不住那條路），所以快照的設計是
+ * 「過期仍正確」而非「必須最新」。
+ *
+ * getCurrentWindow() 在沒有 Tauri runtime 時是**同步 throw**（讀不到
+ * __TAURI_INTERNALS__），不是回一個會 reject 的 promise —— 所以必須 try/catch。
+ * 少了它，瀏覽器 `npm run dev` 的 bootstrap 會在這裡中斷，連 session 都開不出來。
+ * 同理它排在 bootstrap 的最後：這條路徑再出什麼意外都不該擋到建立 session。
+ */
+function installCloseFlush(): void {
+  try {
+    const win = getCurrentWindow();
+    void win
+      .onCloseRequested(async (e) => {
+        if (closingWindow) return;
+        closingWindow = true;
+        e.preventDefault();
+        await flushSnapshot();
+        await flushScrollback();
+        await win.destroy();
+      })
+      .catch(() => {});
+  } catch {
+    /* 沒有 Tauri runtime（瀏覽器 dev / Playwright）：沒有視窗可以掛 handler。 */
+  }
+}
+
 // 啟動時檢查更新；找到新版本只記錄下來提示使用者決定，不自動下載安裝。
 async function checkForUpdateOnStartup(): Promise<void> {
   const { setPhase, setAvailable } = useUpdateStore.getState();
@@ -517,19 +545,6 @@ function App() {
       window.addEventListener("focus", () => {
         useFolderStatusStore.getState().recheckMissing();
       });
-      // 關窗前把快照寫出去。用 destroy() 而非 close()，否則這個 handler 會再
-      // 觸發一次。已知不覆蓋 ⌘Q / app terminate / crash（JS 攔不住那條路），
-      // 所以快照的設計是「過期仍正確」而非「必須最新」。
-      getCurrentWindow()
-        .onCloseRequested(async (e) => {
-          if (closingWindow) return;
-          closingWindow = true;
-          e.preventDefault();
-          await flushSnapshot();
-          await flushScrollback();
-          await getCurrentWindow().destroy();
-        })
-        .catch(() => {});
       // 通知歷史（事件日記）：通知中心本身只在記憶體、上限 50 筆，重開歸零。
       void loadJournalEntries().then((history) => {
         useNotificationsStore.getState().hydrate(history);
@@ -547,6 +562,7 @@ function App() {
       startSessionPersistence();
       startScrollbackPersistence();
       startStaleBusyWatchdog();
+      installCloseFlush();
       void checkForUpdateOnStartup();
     })();
   }, []);
