@@ -2,17 +2,21 @@
 // 執行：node --experimental-strip-types tests/layout-tree.test.ts
 import assert from "node:assert";
 import {
+  MAX_RATIO,
   clampRatio,
   collectSessionIds,
   computeLayout,
   findLeafBySession,
   findTreeBySession,
+  hydrateSnapshotNode,
   leaf,
+  leafCount,
   removeLeafBySession,
   setRatio,
   siblingFirstSession,
   splitLeaf,
   type LayoutNode,
+  type SnapshotNode,
   type SplitNode,
 } from "../src/store/layoutTree.ts";
 
@@ -139,6 +143,64 @@ function approx(a: number, b: number) {
   check("findTree 命中第二棵", findTreeBySession(trees, "s4") === "g2");
   check("findTree 不在任何樹 → null", findTreeBySession(trees, "nope") === null);
   check("findTree 空 record → null", findTreeBySession({}, "s1") === null);
+}
+
+// leafCount：「群組恆有 ≥2 leaf」的判定式
+{
+  const l = leaf("s1");
+  const t2 = splitLeaf(l, l.id, "row", "s2") as SplitNode;
+  const t3 = splitLeaf(t2, (t2.b as { id: string }).id, "column", "s3");
+  check("leafCount：null → 0", leafCount(null) === 0);
+  check("leafCount：單一 leaf → 1", leafCount(l) === 1);
+  check("leafCount：兩個 leaf → 2", leafCount(t2) === 2);
+  check("leafCount：三個 leaf → 3", leafCount(t3) === 3);
+}
+
+// hydrateSnapshotNode：快照節點（無 node id）→ LayoutNode（id 全部重生）
+{
+  const snap: SnapshotNode = {
+    type: "split",
+    dir: "column",
+    ratio: 0.3,
+    a: { type: "leaf", sessionId: "s1" },
+    b: {
+      type: "split",
+      dir: "row",
+      ratio: 0.7,
+      a: { type: "leaf", sessionId: "s2" },
+      b: { type: "leaf", sessionId: "s3" },
+    },
+  };
+  const t = hydrateSnapshotNode(snap) as SplitNode;
+  check("hydrate 保留方向與比例", t.dir === "column" && approx(t.ratio, 0.3));
+  check("hydrate 保留 session 順序", collectSessionIds(t).join(",") === "s1,s2,s3");
+  check("hydrate leaf 數不變", leafCount(t) === 3);
+  // node id 是還原時新生的，且每個節點各不相同 —— 唯一性因此是結構性的，
+  // 不必靠快照裡的 id 沒撞到執行期的 id。
+  const ids: string[] = [];
+  const walk = (n: LayoutNode) => {
+    ids.push(n.id);
+    if (n.type === "split") {
+      walk(n.a);
+      walk(n.b);
+    }
+  };
+  walk(t);
+  check("hydrate 每個節點都有 id", ids.length === 5 && ids.every((x) => x.length > 0));
+  check("hydrate node id 互不重複", new Set(ids).size === ids.length);
+  check(
+    "hydrate 兩次得到不同的 node id",
+    hydrateSnapshotNode(snap).id !== t.id,
+  );
+  check(
+    "hydrate 把非法 ratio clamp 回合法範圍",
+    (hydrateSnapshotNode({ ...snap, ratio: Number.NaN }) as SplitNode).ratio === 0.5 &&
+      (hydrateSnapshotNode({ ...snap, ratio: 42 }) as SplitNode).ratio === MAX_RATIO,
+  );
+  check(
+    "hydrate 單一 leaf",
+    hydrateSnapshotNode({ type: "leaf", sessionId: "solo" }).type === "leaf",
+  );
 }
 
 console.log(`\nlayout-tree: ${passed} checks passed`);

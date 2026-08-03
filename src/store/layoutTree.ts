@@ -183,3 +183,32 @@ export function findTreeBySession(
   }
   return null;
 }
+
+/** 樹裡的 leaf 數量；「群組恆有 ≥2 個 leaf」這條不變量的判定式。 */
+export function leafCount(root: LayoutNode | null): number {
+  if (!root) return 0;
+  return root.type === "leaf" ? 1 : leafCount(root.a) + leafCount(root.b);
+}
+
+/**
+ * 序列化（寫進快照）後的節點形狀：與 LayoutNode 同構，但**沒有 node id**。
+ * id 一律在還原時重新產生（見 hydrateSnapshotNode），所以「快照裡的 id 撞到
+ * 執行期既有的 id」這整類損壞在結構上就不可表示 —— 上面那條唯一性不變量因此
+ * 不必靠還原流程自律。
+ */
+export type SnapshotNode =
+  | { type: "leaf"; sessionId: string }
+  | { type: "split"; dir: SplitDir; ratio: number; a: SnapshotNode; b: SnapshotNode };
+
+/** 快照節點 → LayoutNode：每個 node id 重生，ratio 順手 clamp 回合法範圍。 */
+export function hydrateSnapshotNode(node: SnapshotNode): LayoutNode {
+  if (node.type === "leaf") return leaf(node.sessionId);
+  return {
+    type: "split",
+    id: nodeId(),
+    dir: node.dir,
+    ratio: clampRatio(node.ratio),
+    a: hydrateSnapshotNode(node.a),
+    b: hydrateSnapshotNode(node.b),
+  };
+}

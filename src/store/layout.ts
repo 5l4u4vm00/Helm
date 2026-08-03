@@ -7,6 +7,7 @@ import {
   findLeafBySession,
   findTreeBySession,
   leaf,
+  leafCount,
   removeLeafBySession,
   setRatio as setTreeRatio,
   splitLeaf,
@@ -46,6 +47,12 @@ interface LayoutState {
   /** session 關閉或搬離 workspace 時收合對應 leaf；群組剩單一 leaf 即解散。 */
   removeSession: (sessionId: string) => void;
   setRatio: (splitId: string, ratio: number) => void;
+  /**
+   * 冷還原：整批置換群組樹。傳進來的樹必須已經滿足不變量（node id 重生、
+   * session 不重複、同 workspace）—— 那是 reconcileSnapshot 的責任，這裡只再
+   * 擋一次「群組恆有 ≥2 leaf」，並重新產生群組 id。
+   */
+  restoreTrees: (groups: LayoutNode[]) => void;
 }
 
 export const useLayoutStore = create<LayoutState>((set, get) => {
@@ -102,6 +109,17 @@ export const useLayoutStore = create<LayoutState>((set, get) => {
         return;
       }
       commit(groupId, next);
+    },
+
+    // commit / drop 之外的第三個寫入點，且是唯一一個整批置換 trees 的：只在
+    // 啟動還原時跑一次，之後所有變動仍走 commit / drop。
+    restoreTrees: (groups) => {
+      const trees: Record<string, LayoutNode> = {};
+      for (const root of groups) {
+        if (leafCount(root) < 2) continue;
+        trees[crypto.randomUUID()] = root;
+      }
+      set({ trees });
     },
 
     setRatio: (splitId, ratio) => {
