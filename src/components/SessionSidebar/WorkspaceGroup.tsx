@@ -90,17 +90,23 @@ export const WorkspaceGroup = memo(function WorkspaceGroup({
     if (deletable) setPendingAction({ kind: "delete-workspace", id: w.id });
   };
 
+  // `header` is the focused/clicked workspace header — used to keep roving
+  // focus on the same list position after the group disappears.
+  const confirmDelete = (header: HTMLElement | null) => {
+    const items = [...(listRef.current?.querySelectorAll<HTMLElement>(SIDEBAR_NAV_SELECTOR) ?? [])];
+    const index = header ? items.indexOf(header) : -1;
+    setPendingAction(null);
+    removeWorkspace(w.id);
+    focusAfterRemoval(Math.max(index, 0));
+  };
+
   const onHeaderKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (renaming) return;
     // A pending confirmation captures the next key (see SessionItem).
     if (confirming) {
       e.preventDefault();
       if (e.key === "Enter" || e.key === " ") {
-        const items = [...(listRef.current?.querySelectorAll<HTMLElement>(SIDEBAR_NAV_SELECTOR) ?? [])];
-        const index = items.indexOf(e.currentTarget);
-        setPendingAction(null);
-        removeWorkspace(w.id);
-        focusAfterRemoval(Math.max(index, 0));
+        confirmDelete(e.currentTarget);
         return;
       }
       setPendingAction(null);
@@ -185,7 +191,10 @@ export const WorkspaceGroup = memo(function WorkspaceGroup({
         data-region-entry={regionEntry ? "true" : undefined}
         aria-expanded={!w.collapsed}
         onClick={() => {
-          if (!renaming && !confirming) toggleCollapsed(w.id);
+          // While confirming, a click outside the ✓/✕ buttons cancels (see
+          // SessionItem) rather than collapsing the group.
+          if (confirming) setPendingAction(null);
+          else if (!renaming) toggleCollapsed(w.id);
         }}
         onDoubleClick={() => {
           if (!renaming) onRenameStart();
@@ -194,9 +203,34 @@ export const WorkspaceGroup = memo(function WorkspaceGroup({
       >
         <span className="workspace-chevron">{w.collapsed ? "▸" : "▾"}</span>
         {confirming ? (
-          <span className="sidebar-inline-confirm">
-            {t("sidebar.confirmDeleteWorkspace", { count: sessions.length })}
-          </span>
+          <>
+            <span className="sidebar-inline-confirm">
+              {t("sidebar.confirmDeleteWorkspace", { count: sessions.length })}
+            </span>
+            <button
+              className="icon-btn confirm-yes"
+              title={t("sidebar.confirmYes")}
+              tabIndex={-1}
+              onClick={(e) => {
+                e.stopPropagation();
+                confirmDelete(e.currentTarget.closest<HTMLElement>(".workspace-header"));
+              }}
+            >
+              ✓
+            </button>
+            <button
+              className="icon-btn confirm-no"
+              title={t("sidebar.confirmNo")}
+              tabIndex={-1}
+              onClick={(e) => {
+                e.stopPropagation();
+                setPendingAction(null);
+                e.currentTarget.closest<HTMLElement>(".workspace-header")?.focus();
+              }}
+            >
+              ✕
+            </button>
+          </>
         ) : renaming ? (
           <input
             className="workspace-rename-input"
@@ -212,9 +246,9 @@ export const WorkspaceGroup = memo(function WorkspaceGroup({
             {w.name}
           </span>
         )}
-        <span className="workspace-count">{sessions.length}</span>
+        {!confirming && <span className="workspace-count">{sessions.length}</span>}
         {/* Cross-workspace alert: pending approvals inside this group. */}
-        {pendingCount > 0 && (
+        {!confirming && pendingCount > 0 && (
           <button
             className="workspace-approval-badge"
             title={t("sidebar.pendingApprovalBadge", { count: pendingCount })}
@@ -228,31 +262,35 @@ export const WorkspaceGroup = memo(function WorkspaceGroup({
             {pendingCount}
           </button>
         )}
-        <button
-          className={`icon-btn hover-action ${w.folder && !folderMissing ? "on" : ""}`}
-          title={t("sidebar.selectFolder")}
-          tabIndex={-1}
-          onClick={(e) => {
-            e.stopPropagation();
-            void chooseFolder();
-          }}
-          onDoubleClick={(e) => e.stopPropagation()}
-        >
-          📁
-        </button>
-        <button
-          className="icon-btn hover-action"
-          title={t("sidebar.addSession")}
-          tabIndex={-1}
-          onClick={(e) => {
-            e.stopPropagation();
-            addSession();
-          }}
-          onDoubleClick={(e) => e.stopPropagation()}
-        >
-          +
-        </button>
-        {deletable && (
+        {!confirming && (
+          <button
+            className={`icon-btn hover-action ${w.folder && !folderMissing ? "on" : ""}`}
+            title={t("sidebar.selectFolder")}
+            tabIndex={-1}
+            onClick={(e) => {
+              e.stopPropagation();
+              void chooseFolder();
+            }}
+            onDoubleClick={(e) => e.stopPropagation()}
+          >
+            📁
+          </button>
+        )}
+        {!confirming && (
+          <button
+            className="icon-btn hover-action"
+            title={t("sidebar.addSession")}
+            tabIndex={-1}
+            onClick={(e) => {
+              e.stopPropagation();
+              addSession();
+            }}
+            onDoubleClick={(e) => e.stopPropagation()}
+          >
+            +
+          </button>
+        )}
+        {!confirming && deletable && (
           <button
             className="icon-btn hover-action"
             title={t("sidebar.removeWorkspace")}

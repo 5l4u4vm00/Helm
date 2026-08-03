@@ -132,8 +132,10 @@ export const en: Record<string, string> = {
   "sidebar.close": "Close",
   "sidebar.renameSession":
     "Rename (double-click, or F2 / r) — clear the name to go back to the automatic one",
-  "sidebar.confirmClose": "Close this session? Enter to confirm · Esc to cancel",
-  "sidebar.confirmDeleteWorkspace": "Delete this workspace and {count} sessions? Enter to confirm · Esc to cancel",
+  "sidebar.confirmClose": "Close this session?",
+  "sidebar.confirmDeleteWorkspace": "Delete this workspace and {count} sessions?",
+  "sidebar.confirmYes": "Confirm (Enter)",
+  "sidebar.confirmNo": "Cancel (Esc)",
   "sidebar.state.thinking": "Thinking",
   "sidebar.state.tool": "Running",
   "sidebar.state.waiting": "Awaiting approval",
