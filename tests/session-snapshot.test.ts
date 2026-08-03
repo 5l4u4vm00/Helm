@@ -212,6 +212,34 @@ function roundTrip(snap: SessionSnapshot): SessionSnapshot | null {
   });
   check("現行 launchCommand 優先於 carried", snap.sessions[0].lastLaunchCommand === "codex");
 }
+// 但還原出來的 pane 相反：它的 launchCommand 可能是「自動接續」合成出來的接續
+// 指令，若讓它勝出，每次重啟都會把原始指令再往外推一層
+//（claude → claude --resume X → …），最後連 relaunch 都變成拿過期 id 去接續。
+{
+  const snap = projectSnapshot({
+    sessions: [sess("s1", { launchCommand: "claude --resume abc", restored: true })],
+    trees: {},
+    activeId: "s1",
+    savedAt: 0,
+    carriedLaunchCommands: { s1: "claude" },
+  });
+  check(
+    "還原的 pane：carried 優先（合成的接續指令不會取代原始指令）",
+    snap.sessions[0].lastLaunchCommand === "claude",
+  );
+}
+{
+  const snap = projectSnapshot({
+    sessions: [sess("s1", { launchCommand: "claude --resume abc", restored: true })],
+    trees: {},
+    activeId: "s1",
+    savedAt: 0,
+  });
+  check(
+    "還原的 pane 但沒有 carried（舊格式快照）→ 仍記下現值，不至於什麼都不存",
+    snap.sessions[0].lastLaunchCommand === "claude --resume abc",
+  );
+}
 
 // -------------------------------------------------------- 壞 JSON / 壞 root
 {

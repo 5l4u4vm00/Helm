@@ -20,6 +20,7 @@ import {
   sessionsPersistEqual,
   type SnapshotSession,
 } from "./sessionSnapshotSchema";
+import { resumeCommandForRestore } from "../commands/actions";
 import { readAppFile, writeAppFile, SNAPSHOT_FILE } from "../ipc/appStore";
 import { getVersion } from "@tauri-apps/api/app";
 
@@ -98,8 +99,21 @@ function toSession(s: SnapshotSession): Session {
     agentLabel: s.agentLabel,
     agentSessionIds: s.agentSessionIds,
     transcriptPath: s.transcriptPath,
-    // launchCommand 刻意留空：寫回去，Terminal.tsx 的主 effect 就會把指令送進
-    // 新開的 PTY，無聲重跑一次 agent。原值留在 carriedLaunchCommands。
+    // launchCommand 預設留空：把上次的啟動指令寫回去，Terminal.tsx 的主 effect
+    // 就會把它送進新開的 PTY，無聲重跑一次 agent。原值留在 carriedLaunchCommands。
+    //
+    // 唯一的例外是使用者自己開了「啟動時自動接續」：那時放的是**接續**指令
+    // （resumeCommandForRestore 會擋掉 relaunch，只回真的接得回對話的那種），
+    // 而且必須在 pane 掛載前就放好 —— 那條路徑順便免費繼承 Terminal.tsx 的
+    // `if (launchCommand && launched)` 護欄：cwd 落回 $HOME 時不送指令。
+    // 這對 resume 不是錦上添花而是正確性本身，因為 claude --resume 是以目錄為
+    // scope 的，在錯的目錄接續等於指向錯的 repo。
+    launchCommand:
+      resumeCommandForRestore({
+        agentId: s.agentId,
+        agentSessionIds: s.agentSessionIds,
+        launchCommand: s.lastLaunchCommand,
+      }) ?? undefined,
     restored: true,
   };
 }

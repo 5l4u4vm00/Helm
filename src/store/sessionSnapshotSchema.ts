@@ -86,6 +86,8 @@ export interface ProjectableSession {
   launchCommand?: string;
   agentSessionIds?: string[];
   transcriptPath?: string;
+  /** 這個 pane 是還原出來的 —— 決定 lastLaunchCommand 取 carried 還是現值。 */
+  restored?: boolean;
 }
 
 export interface ProjectSnapshotInput {
@@ -132,7 +134,14 @@ export function projectSnapshot(input: ProjectSnapshotInput): SessionSnapshot {
     if (s.cwd !== undefined) out.cwd = s.cwd;
     if (s.titleLocked) out.titleLocked = true;
     if (s.agentLabel !== undefined) out.agentLabel = s.agentLabel;
-    const launch = s.launchCommand ?? input.carriedLaunchCommands?.[s.id];
+    // 還原出來的 session：carried（上次記下的原始啟動指令）優先。理由是它的
+    // launchCommand 可能是還原時合成的**接續**指令（自動接續設定開啟時），若讓
+    // 它勝出，每次重啟都會把原始指令再往外推一層（claude → claude --resume X →
+    // …），最後連 relaunch 都變成用過期 id 去接續。使用者無法在既有 pane 上改
+    // launchCommand（啟動 agent 一律開新 session），所以對還原的 session 來說
+    // carried 就是唯一的真相。
+    const carried = input.carriedLaunchCommands?.[s.id];
+    const launch = s.restored ? (carried ?? s.launchCommand) : (s.launchCommand ?? carried);
     if (launch !== undefined) out.lastLaunchCommand = launch;
     if (s.agentSessionIds && s.agentSessionIds.length > 0) {
       out.agentSessionIds = [...s.agentSessionIds];
