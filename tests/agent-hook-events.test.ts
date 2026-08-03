@@ -246,6 +246,9 @@ check(
     "OSC9 edit 審批 → waiting",
     deriveNotifySignal(codex, "Codex wants to edit src/a.ts")?.state === "waiting",
   );
+  const plan = deriveNotifySignal(codex, "Plan mode prompt: Choose an approach");
+  check("OSC9 plan prompt → waiting", plan?.state === "waiting");
+  check("OSC9 plan prompt kind → plan", plan?.kind === "plan");
   check(
     "OSC9 turn-complete（任意回應預覽）→ done",
     deriveNotifySignal(codex, "重構完成，已更新 3 個檔案")?.state === "done",

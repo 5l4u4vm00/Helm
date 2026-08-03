@@ -177,7 +177,7 @@ function handleNotify(id: string, message: string) {
   if (!sig) return;
   if (sig.state === "waiting") {
     markHookWaiting(id, Date.now());
-    store.setAgentState(id, "waiting", sig.prompt, "approval");
+    store.setAgentState(id, "waiting", sig.prompt, sig.kind ?? "approval");
   } else {
     clearHookWaiting(id);
     store.setAgentState(id, "done");

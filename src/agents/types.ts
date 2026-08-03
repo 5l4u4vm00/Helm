@@ -20,9 +20,10 @@ export type PromptKind = "approval" | "question" | "plan";
 /**
  * 從終端標題(OSC 0/2)推導的粗訊號:
  * - "busy":agent 執行中(CLI 以 spinner 字元開頭更新標題)。
+ * - "waiting":agent 明確顯示需要使用者操作，但 title 不足以分辨審批/問答。
  * - "rest":agent 靜止(閒置/審批/完成——標題分不出這三者,waiting 仍靠畫面掃描)。
  */
-export type TitleSignal = "busy" | "rest";
+export type TitleSignal = "busy" | "waiting" | "rest";
 
 /**
  * OSC 9 桌面通知序列（`\x1b]9;<訊息>\x07`）的辨識 pattern。Codex 的
@@ -36,12 +37,16 @@ export interface AgentNotifyPatterns {
    * 未命中時的其他通知一律視為回合結束（該 agent 只在這兩種時機發通知）。
    */
   waiting?: string;
+  /** 命中 = plan 模式正等待使用者回答；不可顯示直接核准按鈕。 */
+  plan?: string;
 }
 
-/** 比對終端標題的 pattern(regex 來源字串)。title 只能分忙/不忙,故獨立於 states。 */
+/** 比對終端標題的 pattern(regex 來源字串)，獨立於 viewport states。 */
 export interface AgentTitlePatterns {
   /** 命中 = agent 執行中(spinner 字元)。 */
   busy?: string;
+  /** 命中 = agent 明確顯示需要使用者操作。 */
+  waiting?: string;
   /** 命中 = agent 靜止。選填;無法辨識靜止 title 的工具(如 Codex)可不填。 */
   rest?: string;
 }

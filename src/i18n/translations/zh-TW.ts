@@ -58,6 +58,8 @@ export const zhTW: Record<string, string> = {
   "settings.fontFamilyCustom": "自訂…",
   "settings.fontFamilyCustomValue": "自訂字型",
   "settings.fontSize": "字型大小",
+  "settings.scrollback": "回捲行數",
+  "settings.scrollbackHint": "每個工作階段保留的歷史行數。數值越大越佔記憶體。",
   "settings.cursorStyle": "游標樣式",
   "settings.cursorStyleBlock": "方塊",
   "settings.cursorStyleBar": "直線",
@@ -134,8 +136,10 @@ export const zhTW: Record<string, string> = {
   "sidebar.folderMissing": "目前找不到這個資料夾——新 session 會改由家目錄啟動。",
   "sidebar.close": "關閉",
   "sidebar.renameSession": "重新命名（雙擊，或按 F2 / r）——清空名稱可回到自動標題",
-  "sidebar.confirmClose": "關閉這個 session？Enter 確認 · Esc 取消",
-  "sidebar.confirmDeleteWorkspace": "刪除此 Workspace 與 {count} 個 session？Enter 確認 · Esc 取消",
+  "sidebar.confirmClose": "關閉這個 session？",
+  "sidebar.confirmDeleteWorkspace": "刪除此 Workspace 與 {count} 個 session？",
+  "sidebar.confirmYes": "確認（Enter）",
+  "sidebar.confirmNo": "取消（Esc）",
   "sidebar.state.thinking": "思考中",
   "sidebar.state.tool": "執行中",
   "sidebar.state.waiting": "等待審批",
@@ -162,12 +166,11 @@ export const zhTW: Record<string, string> = {
   "notifCenter.fromHistory": "上次啟動",
 
   // Approval panel
-  "approval.pending": "待處理",
+  "approval.pending": "待核准",
   "approval.approveAll": "全部批准",
   "approval.rejectAll": "全部拒絕",
   "approval.approve": "批准",
   "approval.reject": "拒絕",
-  "approval.answer": "前往回答",
   "approval.collapse": "收合",
   "approval.expand": "展開",
 
@@ -221,6 +224,10 @@ export const zhTW: Record<string, string> = {
   "terminal.launchSkipped":
     "已略過自動啟動 {command}，因為這不是你指定的資料夾。請自行 cd 到目標目錄後再執行。",
   "terminal.spawnFailed": "無法為這個 session 啟動 shell。",
+  "terminal.search.placeholder": "在終端機中尋找",
+  "terminal.search.label": "在終端機中尋找",
+  "terminal.search.close": "關閉搜尋列",
+  "terminal.search.noResults": "找不到",
 
   // Restored scrollback block (framed as a dead record, not live output)
   "terminal.replayHeader": "── 上次啟動的畫面 ──",
@@ -273,6 +280,7 @@ export const zhTW: Record<string, string> = {
   "command.newSessionWith": "新增 Session：{label}",
   "command.splitRightWith": "向右分割：{label}",
   "command.splitDownWith": "向下分割：{label}",
+  "command.terminalSearch": "在終端機中尋找",
   "command.sendCtrlA": "送出 Ctrl+A 給終端機",
   "command.shortcutsHelp": "鍵盤快捷鍵",
 

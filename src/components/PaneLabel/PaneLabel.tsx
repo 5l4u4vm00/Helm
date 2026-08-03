@@ -3,8 +3,8 @@
 // 鍵盤等效為 ContextMenu 鍵或 Shift+F10。
 import { memo, useEffect, useRef, useState } from "react";
 import { useSessionStore, type Session } from "../../store/sessions";
-import { useLayoutStore } from "../../store/layout";
 import type { SplitDir } from "../../store/layoutTree";
+import { splitPane } from "../../commands/actions";
 import { listLaunchers } from "../../agents/registry";
 import { ResumeButton } from "./ResumeButton";
 import { handleListKey, hasNonShiftModifier } from "../../focus/listNav";
@@ -38,12 +38,7 @@ export const PaneLabel = memo(function PaneLabel({ session }: { session: Session
   }, [menuDir]);
 
   const splitTo = (dir: SplitDir, launcher?: AgentLauncher) => {
-    const layout = useLayoutStore.getState();
-    if (!layout.canSplitPane(session.id, dir)) return;
-    const newId = useSessionStore
-      .getState()
-      .createSession(launcher, session.workspaceId);
-    layout.splitPane(session.id, dir, newId);
+    splitPane(session.id, dir, launcher);
   };
 
   const openMenu = (e: React.SyntheticEvent, dir: SplitDir) => {

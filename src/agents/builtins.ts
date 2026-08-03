@@ -93,15 +93,21 @@ export const BUILTIN_PROFILES: AgentProfile[] = [
     // No bare "codex": a session must not get permanently tagged just because
     // a filename or chat line mentions the word.
     detectOutput: "Codex CLI|OpenAI Codex",
-    // 終端標題（0.144.1 實測）：忙碌時「盲文 spinner + cwd 目錄名」（⠹ work），
-    // 靜止時只剩目錄名——無固定字元可辨識，rest 不填。
-    title: { busy: "^[\\u2800-\\u28FF]" },
+    // 終端標題（0.146.0）：預設 activity + project-name；忙碌時是盲文
+    // spinner，等待操作時是會閃爍的 [ ! ] / [ . ] Action Required。
+    // 靜止時只剩專案名，無固定字元可安全辨識，故 rest 不填。
+    title: {
+      busy: "^[\\u2800-\\u28FF]",
+      waiting: "^\\[ [!.] \\] Action Required(?:\\b|$)",
+    },
     // tui.notifications 的 OSC 9 訊息（需使用者 config.toml 設
     // notification_method = "osc9"、notification_condition = "always"）：
-    // approval-requested 的固定前綴 → waiting；其餘（turn-complete 的回應
-    // 預覽、plan-mode prompt）視為回合結束——plan 對話框隨後由畫面掃描的
-    // planMode pattern 接手判 waiting。
-    notify: { waiting: "^Approval requested|^Codex wants to edit" },
+    // approval-requested / plan-mode-prompt 的固定前綴 → waiting；其餘
+    // turn-complete 回應預覽才視為回合結束。
+    notify: {
+      waiting: "^Approval requested|^Codex wants to edit",
+      plan: "^Plan mode prompt:",
+    },
     states: {
       // Approval menu (current Codex TUI): the › selection arrow on a numbered
       // affirmative option ("› 1. Yes, proceed (y)"). The arrow row only exists

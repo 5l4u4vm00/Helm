@@ -58,6 +58,9 @@ export const en: Record<string, string> = {
   "settings.fontFamilyCustom": "Custom…",
   "settings.fontFamilyCustomValue": "Custom font family",
   "settings.fontSize": "Font size",
+  "settings.scrollback": "Scrollback lines",
+  "settings.scrollbackHint":
+    "How many lines of history each session keeps. Larger values use more memory.",
   "settings.cursorStyle": "Cursor style",
   "settings.cursorStyleBlock": "Block",
   "settings.cursorStyleBar": "Bar",
@@ -137,8 +140,10 @@ export const en: Record<string, string> = {
   "sidebar.close": "Close",
   "sidebar.renameSession":
     "Rename (double-click, or F2 / r) — clear the name to go back to the automatic one",
-  "sidebar.confirmClose": "Close this session? Enter to confirm · Esc to cancel",
-  "sidebar.confirmDeleteWorkspace": "Delete this workspace and {count} sessions? Enter to confirm · Esc to cancel",
+  "sidebar.confirmClose": "Close this session?",
+  "sidebar.confirmDeleteWorkspace": "Delete this workspace and {count} sessions?",
+  "sidebar.confirmYes": "Confirm (Enter)",
+  "sidebar.confirmNo": "Cancel (Esc)",
   "sidebar.state.thinking": "Thinking",
   "sidebar.state.tool": "Running",
   "sidebar.state.waiting": "Awaiting approval",
@@ -165,12 +170,11 @@ export const en: Record<string, string> = {
   "notifCenter.fromHistory": "Last launch",
 
   // Approval panel
-  "approval.pending": "Pending input",
+  "approval.pending": "Pending approvals",
   "approval.approveAll": "Approve all",
   "approval.rejectAll": "Reject all",
   "approval.approve": "Approve",
   "approval.reject": "Reject",
-  "approval.answer": "Answer",
   "approval.collapse": "Collapse",
   "approval.expand": "Expand",
 
@@ -226,6 +230,10 @@ export const en: Record<string, string> = {
   "terminal.launchSkipped":
     "{command} was not started automatically, because this is not the folder you asked for. cd where you want it and run it yourself.",
   "terminal.spawnFailed": "Failed to start a shell for this session.",
+  "terminal.search.placeholder": "Find in terminal",
+  "terminal.search.label": "Find in terminal",
+  "terminal.search.close": "Close find bar",
+  "terminal.search.noResults": "No results",
 
   // Restored scrollback block (framed as a dead record, not live output)
   "terminal.replayHeader": "── history from your last session ──",
@@ -278,6 +286,7 @@ export const en: Record<string, string> = {
   "command.newSessionWith": "New Session: {label}",
   "command.splitRightWith": "Split Right: {label}",
   "command.splitDownWith": "Split Down: {label}",
+  "command.terminalSearch": "Find in Terminal",
   "command.sendCtrlA": "Send Ctrl+A to Terminal",
   "command.shortcutsHelp": "Keyboard Shortcuts",
 

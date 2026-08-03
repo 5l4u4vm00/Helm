@@ -95,6 +95,16 @@ export const SessionItem = memo(function SessionItem({
 
   const requestClose = () => setPendingAction({ kind: "close-session", id: s.id });
 
+  // `row` is the focused/clicked session row — used to keep roving focus on the
+  // same list position after the row disappears.
+  const confirmClose = (row: HTMLElement | null) => {
+    const items = [...(listRef.current?.querySelectorAll<HTMLElement>(SIDEBAR_NAV_SELECTOR) ?? [])];
+    const index = row ? items.indexOf(row) : -1;
+    setPendingAction(null);
+    closeSession(s.id);
+    focusAfterRemoval(Math.max(index, 0));
+  };
+
   const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (renaming) return;
     // A pending confirmation captures the next key: confirm, cancel, or
@@ -103,11 +113,7 @@ export const SessionItem = memo(function SessionItem({
     if (confirming) {
       e.preventDefault();
       if (e.key === "Enter" || e.key === " ") {
-        const items = [...(listRef.current?.querySelectorAll<HTMLElement>(SIDEBAR_NAV_SELECTOR) ?? [])];
-        const index = items.indexOf(e.currentTarget);
-        setPendingAction(null);
-        closeSession(s.id);
-        focusAfterRemoval(Math.max(index, 0));
+        confirmClose(e.currentTarget);
         return;
       }
       setPendingAction(null);
@@ -154,7 +160,10 @@ export const SessionItem = memo(function SessionItem({
       draggable={!renaming && !confirming}
       onDragStart={onDragStart}
       onClick={() => {
-        if (!renaming && !confirming) activateSession(s.id);
+        // While confirming, a click anywhere outside the ✓/✕ buttons cancels —
+        // the mouse equivalent of the cancel-and-swallow key rule.
+        if (confirming) setPendingAction(null);
+        else if (!renaming) activateSession(s.id);
       }}
       onDoubleClick={() => {
         if (!renaming) onRenameStart();
@@ -163,7 +172,32 @@ export const SessionItem = memo(function SessionItem({
     >
       <span className={`status-dot ${cls}`} title={cls in stateLabelKeys ? t(stateLabelKeys[cls]) : ""} />
       {confirming ? (
-        <span className="sidebar-inline-confirm">{t("sidebar.confirmClose")}</span>
+        <>
+          <span className="sidebar-inline-confirm">{t("sidebar.confirmClose")}</span>
+          <button
+            className="icon-btn confirm-yes"
+            title={t("sidebar.confirmYes")}
+            tabIndex={-1}
+            onClick={(e) => {
+              e.stopPropagation();
+              confirmClose(e.currentTarget.closest<HTMLElement>(".session-item"));
+            }}
+          >
+            ✓
+          </button>
+          <button
+            className="icon-btn confirm-no"
+            title={t("sidebar.confirmNo")}
+            tabIndex={-1}
+            onClick={(e) => {
+              e.stopPropagation();
+              setPendingAction(null);
+              e.currentTarget.closest<HTMLElement>(".session-item")?.focus();
+            }}
+          >
+            ✕
+          </button>
+        </>
       ) : renaming ? (
         <input
           className="session-rename-input"
@@ -179,18 +213,20 @@ export const SessionItem = memo(function SessionItem({
           {s.title}
         </span>
       )}
-      <button
-        className="icon-btn close"
-        title={t("sidebar.close")}
-        tabIndex={-1}
-        onClick={(e) => {
-          e.stopPropagation();
-          requestClose();
-          e.currentTarget.closest<HTMLElement>(".session-item")?.focus();
-        }}
-      >
-        ×
-      </button>
+      {!confirming && (
+        <button
+          className="icon-btn close"
+          title={t("sidebar.close")}
+          tabIndex={-1}
+          onClick={(e) => {
+            e.stopPropagation();
+            requestClose();
+            e.currentTarget.closest<HTMLElement>(".session-item")?.focus();
+          }}
+        >
+          ×
+        </button>
+      )}
     </div>
   );
 });

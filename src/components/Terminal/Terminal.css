@@ -3,8 +3,19 @@
   width: 100%;
   height: 100%;
   box-sizing: border-box;
+  /* 搜尋列以 absolute 貼齊本 pane 的右上角。 */
+  position: relative;
   background: var(--term-bg);
   overflow: hidden;
+}
+
+/* xterm 實際掛載的容器。FitAddon 量的是 .xterm 的 parent，所以尺寸與置中
+   規則必須留在這一層（而非 .terminal-pane）——搜尋列是它的 sibling，不能
+   參與這裡的 flex 計算，否則會擠掉終端機的可用高度。 */
+.terminal-host {
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
   /* FitAddon 以 floor(高度/行高) 算列數，除不盡的餘數若不處理會全落在底部，
      使底部留白大於頂部且隨視窗高度參差（等同 kitty 的 top-left placement）。
      直向 flex + 垂直置中把餘數對半分到上下（比照 kitty center / alacritty

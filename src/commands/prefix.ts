@@ -62,6 +62,7 @@ export const PREFIX_TABLE: PrefixBinding[] = [
   { key: "Tab", commandId: "focus:cycle-region" },
   { key: "Tab", shift: true, commandId: "focus:cycle-region-back" },
   { key: "i", commandId: "focus:terminal" },
+  { key: "/", commandId: "terminal:search" },
   { key: "?", commandId: "help:shortcuts" },
   // screen-style literal passthrough: C-a a / C-a C-a → 0x01 to the PTY.
   { key: "a", commandId: "terminal:send-prefix" },

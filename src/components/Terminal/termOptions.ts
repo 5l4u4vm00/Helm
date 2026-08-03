@@ -5,17 +5,19 @@ import { withSymbolsFallback } from "../../store/fontFamily";
 import type { CursorStyle } from "../../store/settings";
 
 /**
- * 保留的捲動歷史列數。xterm 預設 1000；agent session 動輒刷掉幾百列，1000 列
- * 常常連這一輪都裝不下。同時也是 scrollback 快照的上限來源 —— 存比終端裝得下
- * 更多的內容沒有意義。
+ * scrollback 快照要存幾列的預設上限。與 xterm 的 `scrollback` 設定分開：終端
+ * 保留多少列是使用者偏好（settings.scrollback），而快照存多少列是磁碟成本的
+ * 取捨，兩者不必相等（存比終端裝得下更多的內容沒有意義，但存少一點是合理的）。
  */
-export const SCROLLBACK_LINES = 5000;
+export const SCROLLBACK_SNAPSHOT_LINES = 1000;
 
 interface TermOptionsInput {
   fontFamily: string;
   fontSize: number;
   cursorStyle: CursorStyle;
   cursorBlink: boolean;
+  /** 使用者可設定的保留列數（見 settings.scrollback）。 */
+  scrollback: number;
 }
 
 /**
@@ -28,7 +30,7 @@ export function buildTermOptions(input: TermOptionsInput, theme: ITheme): ITermi
     fontSize: input.fontSize,
     cursorStyle: input.cursorStyle,
     cursorBlink: input.cursorBlink,
-    scrollback: SCROLLBACK_LINES,
+    scrollback: input.scrollback,
     allowProposedApi: true,
     allowTransparency: true,
     theme,

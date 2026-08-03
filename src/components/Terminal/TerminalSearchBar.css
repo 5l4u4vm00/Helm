@@ -1,0 +1,52 @@
+/* 貼齊 pane 右上角，浮在終端機內容之上。 */
+.term-search {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--sidebar-bg);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 35%);
+}
+
+.term-search input {
+  width: 180px;
+  padding: 2px 6px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--app-bg);
+  color: var(--fg);
+  font-size: 12px;
+}
+
+.term-search input:focus {
+  outline: 1px solid var(--active);
+}
+
+/* 固定寬度：計數在 1/9 → 10/99 之間變動時不該讓輸入框左右跳動。 */
+.term-search-count {
+  min-width: 52px;
+  color: var(--muted);
+  font-size: 11px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.term-search button {
+  padding: 0 4px;
+  border: none;
+  background: none;
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.term-search button:hover {
+  color: var(--fg);
+}

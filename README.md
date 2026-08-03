@@ -16,8 +16,9 @@ individually.
 
 Download the installer for your platform from the
 [GitHub Releases page](https://github.com/YIHSUAN603/Helm/releases). Helm
-checks for updates automatically every time it starts and installs them in
-the background — there's nothing to do manually.
+checks for updates automatically every time it starts and lets you know when
+a new version is available — you choose when to install it, either from the
+prompt in the toolbar or from **Settings → About**.
 
 Prefer to build it yourself? See [Building from source](#building-from-source)
 below.
@@ -195,6 +196,7 @@ Press Ctrl+A, then the second key. Esc or 3 seconds cancels; an unrecognised sec
 | `Tab` | Cycle Focus Region |
 | `Shift+Tab` | Cycle Focus Region (Backward) |
 | `i` | Back to Terminal |
+| `/` | Find in Terminal |
 | `?` | Keyboard Shortcuts |
 | `a` | Send Ctrl+A to Terminal |
 

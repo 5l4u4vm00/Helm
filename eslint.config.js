@@ -5,7 +5,9 @@ import tseslint from "typescript-eslint";
 import reactHooks from "eslint-plugin-react-hooks";
 
 export default tseslint.config(
-  { ignores: ["dist/", "src-tauri/", "node_modules/"] },
+  // .claude/ 底下可能有平行開發用的 git worktree（整份 repo 的複本）：那些檔案
+  // 不在本專案的 tsconfig 內，type-aware 規則會對每一個都報錯。
+  { ignores: ["dist/", "src-tauri/", "node_modules/", ".claude/"] },
   ...tseslint.configs.recommended,
   reactHooks.configs.flat.recommended,
   {

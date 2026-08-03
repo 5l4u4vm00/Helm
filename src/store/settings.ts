@@ -10,6 +10,11 @@ const DEFAULT_FONT_SIZE = 13;
 export const FONT_SIZE_MIN = 8;
 export const FONT_SIZE_MAX = 32;
 
+const DEFAULT_SCROLLBACK = 10000;
+/** 回捲行數範圍：同上，setter 與 number input 共用。上限保護記憶體。 */
+export const SCROLLBACK_MIN = 1000;
+export const SCROLLBACK_MAX = 100000;
+
 /** 字型下拉選單的預設選項，value 為含備援字型的完整 CSS font-family 字串 */
 export interface FontFamilyPreset {
   id: string;
@@ -73,6 +78,7 @@ const KEYS = {
   fontSize: "helm.fontSize",
   cursorStyle: "helm.cursorStyle",
   cursorBlink: "helm.cursorBlink",
+  scrollback: "helm.scrollback",
   defaultShell: "helm.defaultShell",
   defaultCwd: "helm.defaultCwd",
   notificationsEnabled: "helm.notificationsEnabled",
@@ -96,6 +102,8 @@ interface SettingsState {
   fontSize: number;
   cursorStyle: CursorStyle;
   cursorBlink: boolean;
+  // 每個 session 保留的回捲行數；agent transcript 動輒上萬行，預設放寬到 10000。
+  scrollback: number;
   defaultShell: string;
   defaultCwd: string;
   notificationsEnabled: boolean;
@@ -121,6 +129,7 @@ interface SettingsState {
   setFontSize: (v: number) => void;
   setCursorStyle: (v: CursorStyle) => void;
   setCursorBlink: (v: boolean) => void;
+  setScrollback: (v: number) => void;
   setDefaultShell: (v: string) => void;
   setDefaultCwd: (v: string) => void;
   setNotificationsEnabled: (v: boolean) => void;
@@ -156,6 +165,13 @@ function initialCursorBlink(): boolean {
   return v === null ? DEFAULT_CURSOR_BLINK : v === "true";
 }
 
+function initialScrollback(): number {
+  const v = Number(localStorage.getItem(KEYS.scrollback));
+  return Number.isFinite(v) && v >= SCROLLBACK_MIN && v <= SCROLLBACK_MAX
+    ? v
+    : DEFAULT_SCROLLBACK;
+}
+
 function initialBool(key: string): boolean {
   const v = localStorage.getItem(key);
   return v === null ? true : v === "true";
@@ -176,6 +192,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   fontSize: initialFontSize(),
   cursorStyle: initialCursorStyle(),
   cursorBlink: initialCursorBlink(),
+  scrollback: initialScrollback(),
   defaultShell: localStorage.getItem(KEYS.defaultShell) || "",
   defaultCwd: localStorage.getItem(KEYS.defaultCwd) || "",
   notificationsEnabled: initialBool(KEYS.notificationsEnabled),
@@ -209,6 +226,12 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   setCursorBlink: (v) => {
     localStorage.setItem(KEYS.cursorBlink, String(v));
     set({ cursorBlink: v });
+  },
+  setScrollback: (v) => {
+    if (!Number.isFinite(v)) return;
+    const lines = Math.min(SCROLLBACK_MAX, Math.max(SCROLLBACK_MIN, v));
+    localStorage.setItem(KEYS.scrollback, String(lines));
+    set({ scrollback: lines });
   },
   setDefaultShell: (v) => {
     localStorage.setItem(KEYS.defaultShell, v);

@@ -85,6 +85,23 @@
   line-height: 1.3;
 }
 
+/* Mouse equivalents of the Enter/Esc confirmation keys. Always opaque (no
+   hover-action class) so the confirmation is completable without a keyboard. */
+.icon-btn.confirm-yes,
+.icon-btn.confirm-no {
+  flex: 0 0 auto;
+  font-size: 12px;
+  padding: 2px 5px;
+}
+
+.icon-btn.confirm-yes {
+  color: #a6e3a1;
+}
+
+.icon-btn.confirm-no {
+  color: #f38ba8;
+}
+
 .workspace-count {
   flex: 0 0 auto;
   font-size: 10px;
@@ -271,8 +288,9 @@
 }
 
 .status-dot.busy {
-  background: #a6e3a1;
-  box-shadow: 0 0 6px #a6e3a1;
+  background: #89b4fa;
+  box-shadow: 0 0 6px #89b4fa;
+  animation: pulse 1.2s ease-in-out infinite;
 }
 
 .status-dot.idle {

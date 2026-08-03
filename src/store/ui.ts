@@ -32,6 +32,9 @@ interface UiState {
   renamingSessionId: string | null;
   /** Destructive sidebar action awaiting inline Enter/Escape confirmation. */
   sidebarPendingAction: SidebarPendingAction | null;
+  /** Session whose pane is showing the find bar; null when no pane is searching.
+   *  Per-pane rather than global: the bar searches only its own terminal. */
+  searchSessionId: string | null;
   toggleFiles: () => void;
   setFilesOpen: (v: boolean) => void;
   toggleSidebar: () => void;
@@ -45,6 +48,7 @@ interface UiState {
   setRenamingWorkspaceId: (id: string | null) => void;
   setRenamingSessionId: (id: string | null) => void;
   setSidebarPendingAction: (action: SidebarPendingAction | null) => void;
+  setSearchSessionId: (id: string | null) => void;
   openDiff: (target: DiffTarget) => void;
   closeDiff: () => void;
 }
@@ -61,6 +65,7 @@ export const useUiStore = create<UiState>((set, get) => ({
   renamingWorkspaceId: null,
   renamingSessionId: null,
   sidebarPendingAction: null,
+  searchSessionId: null,
   toggleFiles: () => set({ filesOpen: !get().filesOpen }),
   setFilesOpen: (v) => set({ filesOpen: v }),
   toggleSidebar: () => set({ sidebarHidden: !get().sidebarHidden }),
@@ -75,6 +80,7 @@ export const useUiStore = create<UiState>((set, get) => ({
   setRenamingWorkspaceId: (id) => set({ renamingWorkspaceId: id, renamingSessionId: null }),
   setRenamingSessionId: (id) => set({ renamingSessionId: id, renamingWorkspaceId: null }),
   setSidebarPendingAction: (action) => set({ sidebarPendingAction: action }),
+  setSearchSessionId: (id) => set({ searchSessionId: id }),
   openDiff: (target) => set({ diffTarget: target }),
   closeDiff: () => set({ diffTarget: null }),
 }));
