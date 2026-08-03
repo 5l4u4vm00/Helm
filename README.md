@@ -12,6 +12,37 @@ cost, and files an agent has changed are all surfaced in one place, so you
 can run several agents side by side without babysitting each terminal
 individually.
 
+## Everything stays on your machine
+
+Helm has no account, no sign-in, and no server of its own — there is nothing
+to register for, and it works with the network off. It figures out what your
+agents are doing by reading the terminal output already on your screen, so
+your commands, your output, your file diffs, and your usage numbers are never
+sent anywhere. There is no telemetry, no analytics, and no crash reporting.
+Its own window is locked down by a content-security policy that permits no
+remote host at all, and its fonts and assets are bundled rather than fetched
+from a CDN.
+
+Being precise rather than absolute, three things do touch the network, and
+none of them carry your data:
+
+- **The update check** — at startup Helm asks GitHub Releases whether a newer
+  version exists. That is one request for a small version file. It only
+  checks: nothing is downloaded or installed until you say so (see
+  [Installing](#installing)).
+- **A loopback listener for agent hooks** — if you set up the optional
+  [agent integrations](#agent-integrations-optional-recommended), Helm listens
+  on `127.0.0.1` on a random port picked at startup, and the CLI's own hook
+  processes POST their JSON to it. That traffic never leaves your machine and
+  the listener is not reachable from your network.
+- **Links you click** — clicking an `http`/`https` URL in terminal output
+  hands it to your system browser. Helm does not fetch it itself.
+
+The agent CLIs you run are a separate matter: Claude Code and Codex talk to
+their own providers' APIs and need their own accounts. That is the CLI doing
+exactly what it does in any terminal — Helm neither proxies nor relays it,
+and adds nothing of its own on top.
+
 ## Installing
 
 Download the installer for your platform from the
