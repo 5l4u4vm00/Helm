@@ -53,7 +53,10 @@ pub fn read_app_file(app: AppHandle, name: String) -> Result<Option<String>, Str
         return Ok(None);
     }
     if meta.len() > MAX_READ_BYTES {
-        return Err(format!("state file too large: {name} ({} bytes)", meta.len()));
+        return Err(format!(
+            "state file too large: {name} ({} bytes)",
+            meta.len()
+        ));
     }
     let text = std::fs::read_to_string(&path).map_err(|e| format!("read failed: {e}"))?;
     Ok(Some(text))

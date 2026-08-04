@@ -27,12 +27,7 @@ const LEGACY_CMD_MARKER: &str = "%HELM_EVENT_PORT%";
 /// PostToolUse = 工具完成/檔案變更、SessionStart = 一開場就拿到 agent 自己的
 /// session_id，供重啟後接續對話 —— 前三者也帶 session_id，但 SessionStart 讓
 /// 「還沒動過任何工具就重啟」的 session 也能接續）。
-const CLAUDE_HOOK_EVENTS: [&str; 4] = [
-    "PermissionRequest",
-    "Stop",
-    "PostToolUse",
-    "SessionStart",
-];
+const CLAUDE_HOOK_EVENTS: [&str; 4] = ["PermissionRequest", "Stop", "PostToolUse", "SessionStart"];
 
 /// 轉發腳本內容。腳本放獨立檔案而非 Rust 字串常數：review 時看得到語法上色，
 /// 且 CI 能在 windows runner 上用 [ScriptBlock]::Create 做語法檢查。
