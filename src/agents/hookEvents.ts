@@ -135,10 +135,13 @@ export function normalizeHookPayload(source: string, payload: unknown): AgentEve
   if (source === "claude-code-statusline") {
     const cost = isRecord(payload.cost) ? num(payload.cost.total_cost_usd) : undefined;
     const ctx = isRecord(payload.context_window) ? payload.context_window : undefined;
+    // token 數在 context_window.current_usage 底下；該物件在首次 API 呼叫前、
+    // 以及 /compact 後到下次呼叫前都是 null，故要自己的守衛。
+    const cu = ctx && isRecord(ctx.current_usage) ? ctx.current_usage : undefined;
     const usage = {
       cost,
-      tokensIn: ctx ? num(ctx.total_input_tokens) : undefined,
-      tokensOut: ctx ? num(ctx.total_output_tokens) : undefined,
+      tokensIn: cu ? num(cu.input_tokens) : undefined,
+      tokensOut: cu ? num(cu.output_tokens) : undefined,
       contextLeftPercent: ctx ? num(ctx.remaining_percentage) : undefined,
       planUsage: parsePlanUsage(payload.rate_limits),
     };

@@ -148,8 +148,12 @@ check(
   const ev = normalizeHookPayload("claude-code-statusline", {
     cost: { total_cost_usd: 0.1234 },
     context_window: {
-      total_input_tokens: 1500,
-      total_output_tokens: 200,
+      current_usage: {
+        input_tokens: 1500,
+        output_tokens: 200,
+        cache_creation_input_tokens: 30,
+        cache_read_input_tokens: 40,
+      },
       remaining_percentage: 92,
     },
   });
@@ -160,6 +164,36 @@ check(
       ev.usage.tokensIn === 1500 &&
       ev.usage.tokensOut === 200 &&
       ev.usage.contextLeftPercent === 92,
+  );
+}
+{
+  // remaining_percentage 可為 null（官方 schema）。Toolbar 這時才 fallback 到
+  // token 顯示——token 欄位讀錯正是在這條路徑上暴露。
+  const ev = normalizeHookPayload("claude-code-statusline", {
+    context_window: {
+      current_usage: { input_tokens: 800, output_tokens: 90 },
+      remaining_percentage: null,
+    },
+  });
+  check(
+    "statusline remaining_percentage null → 仍有 token 數",
+    ev?.kind === "usage" &&
+      ev.usage.contextLeftPercent === undefined &&
+      ev.usage.tokensIn === 800 &&
+      ev.usage.tokensOut === 90,
+  );
+}
+{
+  // current_usage 為 null（首次 API 呼叫前 / compact 後）→ token 缺席但不當掉。
+  const ev = normalizeHookPayload("claude-code-statusline", {
+    context_window: { current_usage: null, remaining_percentage: 77 },
+  });
+  check(
+    "statusline current_usage null → 只有 context%",
+    ev?.kind === "usage" &&
+      ev.usage.tokensIn === undefined &&
+      ev.usage.tokensOut === undefined &&
+      ev.usage.contextLeftPercent === 77,
   );
 }
 check(

@@ -109,10 +109,10 @@ export const BUILTIN_PROFILES: AgentProfile[] = [
       busy: "^[\\u2800-\\u28FF]",
       waiting: "^\\[ [!.] \\] Action Required(?:\\b|$)",
     },
-    // tui.notifications 的 OSC 9 訊息（需使用者 config.toml 設
-    // notification_method = "osc9"、notification_condition = "always"）：
-    // approval-requested / plan-mode-prompt 的固定前綴 → waiting；其餘
-    // turn-complete 回應預覽才視為回合結束。
+    // OSC 9 訊息（需使用者在 config.toml 的 [tui] 下設 notification_method =
+    // "osc9"、notification_condition = "always"）：approval-requested /
+    // plan-mode-prompt 的固定前綴 → waiting；其餘 turn-complete 回應預覽才視為
+    // 回合結束。以下四個前綴皆為 Codex 0.146.0 binary 內的實際字串。
     notify: {
       waiting: "^Approval requested|^Codex wants to edit",
       plan: "^Plan mode prompt:",
@@ -137,9 +137,9 @@ export const BUILTIN_PROFILES: AgentProfile[] = [
     },
     extract: {
       cost: "cost[:\\s]*\\$\\s?([0-9]+(?:\\.[0-9]+)?)",
-      tokensIn: "([0-9,]+)\\s*(?:input|prompt)",
-      tokensOut: "([0-9,]+)\\s*(?:output|completion)",
-      // 2026-07-10：Codex TUI 僅公開顯示剩餘 context，不提供 input/output token。
+      // 2026-07-10：Codex TUI 僅公開顯示剩餘 context，不提供 input/output token，
+      // 故刻意不設 tokensIn/tokensOut——沒有 token 關鍵字可錨定，任何「數字 +
+      // input/prompt」的 regex 只會擷到誤讀（"3 input files"）。
       contextLeftPercent: "([0-9]+(?:\\.[0-9]+)?)%\\s*context\\s*left",
       fileChange: "\\b(Apply patch|patch|edit|create|update)\\b.*?([^\\s]+\\.[A-Za-z0-9]+)",
     },
