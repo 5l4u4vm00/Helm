@@ -21,6 +21,7 @@ import {
 import { openExternalUrl } from "../../ipc/opener";
 import { resolveXtermTheme, useThemeStore } from "../../store/theme";
 import { decodeOsc52 } from "./osc52";
+import { decodeOsc9 } from "./osc9";
 import { useSettingsStore } from "../../store/settings";
 import { SYMBOLS_NERD_FONT, withSymbolsFallback } from "../../store/fontFamily";
 import { useUiStore } from "../../store/ui";
@@ -219,10 +220,15 @@ function TerminalImpl({
 
     const titleDisposable = term.onTitleChange((t) => cbRef.current.onTitle?.(t));
 
-    // OSC 9（桌面通知）：Codex 的 tui.notifications 以 `\x1b]9;<訊息>\x07`
-    // 通知審批/回合結束，訊息交給 onNotify 推導狀態。回 true 表示已處理。
+    // OSC 9（桌面通知）：Codex 設了 [tui] 的 notification_method = "osc9" 後，
+    // 會以 `\x1b]9;<訊息>\x07` 通知審批/回合結束，訊息交給 onNotify 推導狀態。
+    // decodeOsc9 會先濾掉 ConEmu / Windows Terminal 的進度子命令（9;1～9;4），
+    // 否則那些會被當成「回合結束」而誤報 done（見 osc9.ts）。
+    // 忽略時仍回 true：沒有其他 OSC 9 consumer，xterm 對 OSC 9 也沒有內建行為，
+    // 回 false 只會落入 unhandled 路徑產生雜訊（與下方 OSC 52 的 `?` 查詢同慣例）。
     const oscDisposable = term.parser.registerOscHandler(9, (data) => {
-      cbRef.current.onNotify?.(data);
+      const text = decodeOsc9(data);
+      if (text !== null) cbRef.current.onNotify?.(text);
       return true;
     });
 

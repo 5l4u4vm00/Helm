@@ -139,10 +139,11 @@ function handleTitle(id: string, title: string) {
   setTitleSignal(id, signal, Date.now());
 }
 
-// OSC 9 桌面通知（Codex tui.notifications）→ 狀態訊號。發通知的 agent 只在
-// 「要審批」與「回合結束」時發通知，waiting 前綴未命中即視為 done。session
-// 尚未偵測到 agent 時，只有特異的 waiting 前綴兼作辨識；任意程式發的其他
-// OSC 9 通知不動狀態。
+// OSC 9 桌面通知（Codex [tui] 的 notification_method = "osc9"）→ 狀態訊號。
+// 發通知的 agent 只在「要審批」與「回合結束」時發通知，waiting 前綴未命中即
+// 視為 done——所以 ConEmu / Windows Terminal 的進度子命令必須在更前面就被
+// decodeOsc9 濾掉，否則會誤報 done（見 Terminal/osc9.ts）。session 尚未偵測到
+// agent 時，只有特異的 waiting 前綴兼作辨識。
 function handleNotify(id: string, message: string) {
   const store = useSessionStore.getState();
   const sess = store.sessions.find((x) => x.id === id);
