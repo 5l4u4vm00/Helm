@@ -112,7 +112,16 @@ fn claude_settings_path() -> Result<PathBuf, String> {
     Ok(PathBuf::from(home).join(".claude").join("settings.json"))
 }
 
+/// Codex 設定檔路徑。CODEX_HOME 指向「設定目錄」（內含 config.toml）而非檔案
+/// 本身，這是 Codex 自己的語義（已對 0.146.0 實測）。空字串要濾掉，否則
+/// export 成空值會解析成相對於 Helm cwd 的 ./config.toml。
 fn codex_config_path() -> Result<PathBuf, String> {
+    if let Some(dir) = std::env::var("CODEX_HOME")
+        .ok()
+        .filter(|s| !s.trim().is_empty())
+    {
+        return Ok(PathBuf::from(dir).join("config.toml"));
+    }
     let home = dirs_home().ok_or("no home dir")?;
     Ok(PathBuf::from(home).join(".codex").join("config.toml"))
 }
@@ -132,6 +141,46 @@ fn write_json(path: &PathBuf, value: &Value) -> Result<(), String> {
     }
     let text = serde_json::to_string_pretty(value).map_err(|e| e.to_string())?;
     std::fs::write(path, text + "\n").map_err(|e| format!("write failed: {e}"))
+}
+
+/// notification_method 是否為 osc9。實測 Codex 0.146.0 接受兩種合法寫法：
+/// 字串 `"osc9"`，以及 externally-tagged 的 unit variant `{ osc9 = {} }`
+/// （`{ type = "osc9" }` 會被拒，key 本身就是變體名）。陣列形式被 Codex 拒絕
+/// （`invalid type: sequence`），故不接受。比對用完全相等，`"not-osc9"` 不算；
+/// 不做大小寫折疊——TOML value 大小寫敏感，且 Codex 認的是小寫。
+fn method_is_osc9(v: Option<&toml::Value>) -> bool {
+    match v {
+        Some(toml::Value::String(s)) => s == "osc9",
+        Some(toml::Value::Table(t)) => t.len() == 1 && t.contains_key("osc9"),
+        _ => false,
+    }
+}
+
+/// Codex 是否已設好 Helm 需要的 OSC 9 通知（純函式，可單元測試）。
+///
+/// 真正解析 TOML 而非逐行字串比對：原本的行掃描不看目前在哪個 [table]，又用
+/// starts_with 比對 key、contains 比對 value、只跳過整行註解，於是
+/// `notification_method_fallback`、`"not-osc9"`、行尾註解 `# osc9`、以及放在
+/// 任何其他 table 下的 key 都會誤判「已設定」（假綠燈：Helm 說好了但通知永遠
+/// 不來，最難除錯）；反過來 dotted key、inline table、map 形式這些合法寫法會
+/// 誤判「未設定」，讓已正確設定的人被提示橫幅永久打擾。
+///
+/// 解析後 dotted key / [tui] / inline table 三種寫法是同一棵樹，取 tui 子表即
+/// 可一次涵蓋。TOML 壞掉視為未設定：不 panic，UI 只會顯示可複製的片段。
+fn codex_osc9_enabled(toml_text: &str) -> bool {
+    let Ok(root) = toml_text.parse::<toml::Table>() else {
+        return false;
+    };
+    let Some(tui) = root.get("tui").and_then(toml::Value::as_table) else {
+        return false;
+    };
+    // condition 必須是 always：Helm 需要在自己視窗有焦點時也收到訊號（焦點抑制
+    // 由 shouldDesktopNotify 自己處理），unfocused 對 Helm 不夠用。
+    method_is_osc9(tui.get("notification_method"))
+        && tui
+            .get("notification_condition")
+            .and_then(toml::Value::as_str)
+            == Some("always")
 }
 
 /// statusline 的狀態："none"（未設）/"helm"（我們裝的）/"other"（使用者自己的）。
@@ -163,19 +212,11 @@ pub fn integration_status() -> IntegrationStatus {
         .map(|h| has_helm_marker(&h.to_string()))
         .unwrap_or(false);
     let claude_statusline = statusline_state(&settings);
-    // 粗略文字檢查（僅供狀態顯示）：兩個 key 都設成需要的值才算開啟。
+    // 只讀不寫；讀不到檔或解析失敗都視為未設定（UI 會給可複製的片段）。
     let codex_osc9 = codex_config_path()
         .ok()
         .and_then(|p| std::fs::read_to_string(p).ok())
-        .map(|toml| {
-            let has = |key: &str, val: &str| {
-                toml.lines().any(|l| {
-                    let l = l.trim();
-                    !l.starts_with('#') && l.starts_with(key) && l.contains(val)
-                })
-            };
-            has("notification_method", "osc9") && has("notification_condition", "always")
-        })
+        .map(|t| codex_osc9_enabled(&t))
         .unwrap_or(false);
     IntegrationStatus {
         claude_hooks,
@@ -470,6 +511,150 @@ mod tests {
         assert!(STATUSLINE_SCRIPT_PS1.contains("-NoNewline"));
         // 官方 schema 沒有這個欄位（真實路徑是 current_usage.input_tokens）。
         assert!(!STATUSLINE_SCRIPT_PS1.contains("total_input_tokens"));
+    }
+
+    // ---- codex OSC 9 偵測 ----
+
+    /// 貼近使用者真實 config.toml 的骨架：多個 section、[tui] 之後還有子表。
+    /// tui_body 放 [tui] 那段。
+    fn codex_config(tui_body: &str) -> String {
+        format!(
+            "model = \"gpt-5\"\n\
+             \n\
+             [projects.\"/home/u/proj\"]\n\
+             trust_level = \"trusted\"\n\
+             \n\
+             [notice.model_migrations]\n\
+             \"gpt-5.2\" = \"gpt-5.3\"\n\
+             \n\
+             {tui_body}\n"
+        )
+    }
+
+    // 使用者真實的寫法：[tui] 下兩個 key，且後面還有 [tui.*] 子表。
+    #[test]
+    fn codex_osc9_detects_plain_tui_table() {
+        let s = codex_config(
+            "[tui]\n\
+             notification_method = \"osc9\"\n\
+             notification_condition = \"always\"\n\
+             \n\
+             [tui.model_availability_nux]\n\
+             \"gpt-5.5\" = 4\n",
+        );
+        assert!(codex_osc9_enabled(&s));
+    }
+
+    // 關鍵修正：key 放在別的 table（或 document root）都不算——舊的行掃描會誤判。
+    #[test]
+    fn codex_osc9_ignores_keys_in_other_tables() {
+        let wrong_table = codex_config(
+            "[mcp_servers.foo]\n\
+             notification_method = \"osc9\"\n\
+             notification_condition = \"always\"\n",
+        );
+        assert!(!codex_osc9_enabled(&wrong_table));
+        let root = "notification_method = \"osc9\"\nnotification_condition = \"always\"\n";
+        assert!(!codex_osc9_enabled(root));
+    }
+
+    // dotted key 是合法 TOML，解析後與 [tui] 同一棵樹 → 必須算已設定。
+    // 注意 dotted key 屬於「前面最近的 table」，故必須放在任何 [section] 之前
+    // （不能用 codex_config，否則會變成 notice.model_migrations.tui）。
+    #[test]
+    fn codex_osc9_accepts_dotted_keys() {
+        let s = "model = \"gpt-5\"\n\
+                 tui.notification_method = \"osc9\"\n\
+                 tui.notification_condition = \"always\"\n\
+                 \n\
+                 [projects.\"/home/u/proj\"]\n\
+                 trust_level = \"trusted\"\n";
+        assert!(codex_osc9_enabled(s));
+    }
+
+    // inline table 同理，且同樣要在 [section] 之前。也不能再帶 [tui.*] 子表
+    // ——為 inline table 定義子表是非法 TOML，會讓測試因錯誤的原因而通過。
+    #[test]
+    fn codex_osc9_accepts_inline_table() {
+        let s = "tui = { notification_method = \"osc9\", notification_condition = \"always\" }\n\
+                 \n\
+                 [projects.\"/home/u/proj\"]\n\
+                 trust_level = \"trusted\"\n";
+        assert!(codex_osc9_enabled(s));
+    }
+
+    // 實測 Codex 接受 externally-tagged 的 unit variant 寫法。
+    #[test]
+    fn codex_osc9_accepts_method_as_tagged_map() {
+        let s = codex_config(
+            "[tui]\n\
+             notification_method = { osc9 = {} }\n\
+             notification_condition = \"always\"\n",
+        );
+        assert!(codex_osc9_enabled(&s));
+    }
+
+    // 實測 Codex 拒絕陣列（invalid type: sequence），故我們也不能算已設定。
+    #[test]
+    fn codex_osc9_rejects_method_array() {
+        let s = codex_config(
+            "[tui]\n\
+             notification_method = [\"osc9\"]\n\
+             notification_condition = \"always\"\n",
+        );
+        assert!(!codex_osc9_enabled(&s));
+    }
+
+    // 舊的 starts_with / contains 比對會把這些全放過。
+    #[test]
+    fn codex_osc9_rejects_lookalike_values_and_keys() {
+        let similar = codex_config(
+            "[tui]\n\
+             notification_method = \"not-osc9\"\n\
+             notification_condition = \"always\"\n",
+        );
+        assert!(!codex_osc9_enabled(&similar));
+        let prefixed = codex_config(
+            "[tui]\n\
+             notification_method_fallback = \"osc9\"\n\
+             notification_condition = \"always\"\n",
+        );
+        assert!(!codex_osc9_enabled(&prefixed));
+        // 行尾註解供出子字串——舊檢查只跳過整行註解。
+        let comment = codex_config(
+            "[tui]\n\
+             notification_method = \"auto\" # osc9 試過會壞\n\
+             notification_condition = \"always\"\n",
+        );
+        assert!(!codex_osc9_enabled(&comment));
+    }
+
+    // condition 必須是 always；unfocused 對 Helm 不夠（見 codex_osc9_enabled 註解）。
+    #[test]
+    fn codex_osc9_requires_condition_always() {
+        let s = codex_config(
+            "[tui]\n\
+             notification_method = \"osc9\"\n\
+             notification_condition = \"unfocused\"\n",
+        );
+        assert!(!codex_osc9_enabled(&s));
+    }
+
+    // 缺任一 key 都不算。
+    #[test]
+    fn codex_osc9_requires_both_keys() {
+        let no_cond = codex_config("[tui]\nnotification_method = \"osc9\"\n");
+        assert!(!codex_osc9_enabled(&no_cond));
+        let no_method = codex_config("[tui]\nnotification_condition = \"always\"\n");
+        assert!(!codex_osc9_enabled(&no_method));
+    }
+
+    // 壞 TOML / 空文件 → false，且不得 panic。
+    #[test]
+    fn codex_osc9_handles_malformed_input() {
+        assert!(!codex_osc9_enabled("[tui\nnotification_method = "));
+        assert!(!codex_osc9_enabled(""));
+        assert!(!codex_osc9_enabled("這不是 TOML"));
     }
 
     // statusline 偵測：quoted / 未加引號的舊安裝都判為 "helm"；其他 command 判 "other"。
