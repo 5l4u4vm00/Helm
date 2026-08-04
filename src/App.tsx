@@ -268,7 +268,9 @@ function handleScan(id: string, text: string) {
   }
   // 剛送出的 resume 失敗了（"No conversation found"）→ 記錄並早退：失敗訊息
   // 不是一個待回應的提示，不該被推導成 waiting。
-  if (consumeResumeFailure(id, text)) return;
+  if (consumeResumeFailure(sess, text, { sessions: store.sessions, activeId: store.activeId })) {
+    return;
+  }
   let profileId = sess.agentId;
   if (!profileId) {
     const p = detectProfile(text);

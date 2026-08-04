@@ -1,15 +1,15 @@
 // 多 session 狀態管理 + agent 感知。
 import { create } from "zustand";
 import { groupTreeOf, useLayoutStore } from "./layout";
-import { collectSessionIds, siblingFirstSession } from "./layoutTree";
+import { siblingFirstSession } from "./layoutTree";
 import { resolveFocusedWorkspace } from "./workspaceGroups";
 import {
   clearNotifyDedupe,
   detectAgentEvent,
   isBusyState,
   shouldDesktopNotify,
-  type DesktopNotifyContext,
 } from "./notificationRouter";
+import { desktopNotifyContext, routeAlert, type AlertScope } from "./alertRoute";
 import { useNotificationsStore } from "./notifications";
 import { isWaitingKind, type NotifyKind } from "./notificationCenter";
 import { appendAgentSessionId } from "./agentIdentity";
@@ -19,7 +19,6 @@ import { clearScanState } from "./scanState";
 import { clearStaleBusy } from "./staleBusy";
 import { clearResumeState } from "./resumeState";
 import { nextSessionTitle, resolveRename, shouldAcceptAutoTitle } from "./sessionTitle";
-import { useSettingsStore } from "./settings";
 import { notify } from "../ipc/notify";
 import { getProfile } from "../agents/registry";
 import { t } from "../i18n";
@@ -121,37 +120,10 @@ function samePlanUsage(a?: PlanUsage, b?: PlanUsage): boolean {
   );
 }
 
-// 事件類型 → settings 的類型開關。查表而非三元式串接：新增 NotifyKind 時
-// TS 會直接指出這張表缺一項，而串接的三元式只會默默沿用最後一個 fallback。
-const NOTIFY_TOGGLE_KEYS: Record<
-  NotifyKind,
-  "notifyWaiting" | "notifyDone" | "notifyError" | "notifyInterrupted" | "notifyStalled"
-> = {
-  approval: "notifyWaiting",
-  question: "notifyWaiting",
-  plan: "notifyWaiting",
-  done: "notifyDone",
-  error: "notifyError",
-  interrupted: "notifyInterrupted",
-  stalled: "notifyStalled",
-};
-
-/** 桌面通知 gating 所需的環境：類型開關（settings）+ 視窗焦點 + workspace/pane 歸屬。 */
-function desktopNotifyContext(sess: Session, kind: NotifyKind): DesktopNotifyContext {
-  const st = useSettingsStore.getState();
-  const perKind = st[NOTIFY_TOGGLE_KEYS[kind]];
+/** gating 環境的 scope（sessions + activeId）；見 alertRoute.desktopNotifyContext。 */
+function alertScope(): AlertScope {
   const { sessions, activeId } = useSessionStore.getState();
-  // 畫面上的 pane = active 的分割群組成員；未分組時只有 active 自己
-  //（與 Toolbar 的派工對象同一套定義）。
-  const tree = groupTreeOf(useLayoutStore.getState().trees, activeId);
-  const visibleIds = tree ? collectSessionIds(tree) : activeId ? [activeId] : [];
-  return {
-    enabled: st.notificationsEnabled && perKind,
-    windowFocused: document.hasFocus(),
-    inFocusedWorkspace: sess.workspaceId === resolveFocusedWorkspace(sessions, activeId),
-    paneVisible: visibleIds.includes(sess.id),
-    notifyHiddenPanes: st.notifyHiddenPanes,
-  };
+  return { sessions, activeId };
 }
 
 /**
@@ -168,9 +140,8 @@ export function notifyPendingPrompt(sess: Session): void {
   const kind: PromptKind = sess.pendingPrompt?.kind ?? "approval";
   const text = sess.pendingPrompt?.text ?? sess.pendingApproval;
   if (!text) return;
-  if (!shouldDesktopNotify(sess.id, kind, text, desktopNotifyContext(sess, kind), Date.now())) {
-    return;
-  }
+  const ctx = desktopNotifyContext(sess, kind, alertScope());
+  if (!shouldDesktopNotify(sess.id, kind, text, ctx, Date.now())) return;
   notify(sess.id, t(`notify.${kind}`, { label: sess.agentLabel ?? "Agent" }), text);
 }
 
@@ -180,19 +151,22 @@ export function notifyPendingPrompt(sess: Session): void {
  * notifyPendingPrompt（與 blur 補發共用同一條路徑）。
  */
 function emitAgentEvent(sess: Session, kind: NotifyKind): void {
+  const text = sess.pendingPrompt?.text ?? sess.pendingApproval;
+  // 瞬時事件（done / error / interrupted / stalled）：去重內容用空字串，所以同
+  // 一類事件在冷卻期內只響一次；本文用 session 標題（哪個 pane 出事最重要）。
+  if (!isWaitingKind(kind)) {
+    routeAlert(sess, kind, { center: text, dedupe: "", body: sess.title }, alertScope());
+    return;
+  }
+  // waiting 類：中心照樣記錄，桌面通知交給 notifyPendingPrompt —— 與 App.tsx 的
+  // blur 補發共用同一條路徑（去重紀錄因此只有一份）。
   useNotificationsStore.getState().push({
     kind,
     sessionId: sess.id,
     sessionTitle: sess.title,
     agentLabel: sess.agentLabel,
-    text: sess.pendingPrompt?.text ?? sess.pendingApproval,
+    text,
   });
-  if (!isWaitingKind(kind)) {
-    if (shouldDesktopNotify(sess.id, kind, "", desktopNotifyContext(sess, kind), Date.now())) {
-      notify(sess.id, t(`notify.${kind}`, { label: sess.agentLabel ?? "Agent" }), sess.title);
-    }
-    return;
-  }
   notifyPendingPrompt(sess);
 }
 

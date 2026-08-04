@@ -281,7 +281,8 @@ export function resumePlanForSession(sess: Session | undefined): ResumePlan | nu
  * 改它等於 teardown + ptyKill + 重開一條 PTY。
  */
 export function resumeSessionAgent(sessionId: string): void {
-  const sess = useSessionStore.getState().sessions.find((s) => s.id === sessionId);
+  const { sessions, activeId } = useSessionStore.getState();
+  const sess = sessions.find((s) => s.id === sessionId);
   const plan = resumePlanForSession(sess);
   if (!sess || !plan) return;
   // 工作目錄不在了 → 一個字都不寫進 PTY。接續是**以目錄為 scope** 的：在錯的
@@ -289,7 +290,10 @@ export function resumeSessionAgent(sessionId: string): void {
   // 要嘛找不到對話，要嘛（更糟）接到家目錄下另一段無關的對話。
   // dirExists 是 fail-open：只有「探測過且確認不在」才阻擋，未知不擋。
   if (sess.cwd && useFolderStatusStore.getState().missing[sess.cwd] === true) {
-    reportResumeFailure(sess, t("terminal.launchSkipped", { command: plan.command }));
+    reportResumeFailure(sess, t("terminal.launchSkipped", { command: plan.command }), {
+      sessions,
+      activeId,
+    });
     return;
   }
   markResumeAttempt(sess.id, plan.agentSessionId, Date.now());

@@ -30,6 +30,25 @@ export function isWaitingKind(kind: NotifyKind): boolean {
   return WAITING_KINDS.includes(kind);
 }
 
+/**
+ * 事件類型 → settings 裡對應的類型開關。查表而非三元式串接：新增 NotifyKind 時
+ * TS 會直接指出這張表缺一項，而串接的三元式只會默默沿用最後一個 fallback。
+ * 放在這裡（而非 settings.ts）是為了讓 NotifyKind 與它的開關並列在同一個檔案，
+ * 加一種事件時兩件事一起看到。
+ */
+export const NOTIFY_TOGGLE_KEYS: Record<
+  NotifyKind,
+  "notifyWaiting" | "notifyDone" | "notifyError" | "notifyInterrupted" | "notifyStalled"
+> = {
+  approval: "notifyWaiting",
+  question: "notifyWaiting",
+  plan: "notifyWaiting",
+  done: "notifyDone",
+  error: "notifyError",
+  interrupted: "notifyInterrupted",
+  stalled: "notifyStalled",
+};
+
 export interface AppNotification {
   id: string;
   kind: NotifyKind;
