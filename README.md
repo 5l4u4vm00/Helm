@@ -45,11 +45,40 @@ and adds nothing of its own on top.
 
 ## Installing
 
+### macOS (Homebrew)
+
+```sh
+brew tap YIHSUAN603/tap
+brew install --cask helm-terminal
+```
+
+`YIHSUAN603/tap` is the
+[homebrew-tap](https://github.com/YIHSUAN603/homebrew-tap) repository. The cask
+is called `helm-terminal` because homebrew/core already has an unrelated `helm`
+formula (Kubernetes Helm).
+
+macOS builds are signed ad hoc rather than notarized by Apple, so macOS would
+otherwise refuse to open the app ("Helm.app is damaged"). The cask removes the
+quarantine flag for you after installing — that deliberately steps around
+Gatekeeper, which is why the cask also pins the SHA-256 of each disk image. If
+you still see the dialog, run `xattr -cr /Applications/Helm.app` once.
+
+Helm keeps itself up to date, so `brew upgrade` leaves it alone; use
+`brew upgrade --cask --greedy helm-terminal` if you would rather Homebrew did
+it. To remove it: `brew uninstall --cask helm-terminal`, or add `--zap` to also
+delete `~/Library/Application Support/com.arieschao.helm` — which is where your
+`agents.json` lives.
+
+### Other platforms, or a direct download
+
 Download the installer for your platform from the
-[GitHub Releases page](https://github.com/YIHSUAN603/Helm/releases). Helm
-checks for updates automatically every time it starts and lets you know when
-a new version is available — you choose when to install it, either from the
-prompt in the toolbar or from **Settings → About**.
+[GitHub Releases page](https://github.com/YIHSUAN603/Helm/releases). If you
+install the macOS `.dmg` yourself, clear the quarantine flag before first
+launch: `xattr -cr /Applications/Helm.app`.
+
+Helm checks for updates automatically every time it starts and lets you know
+when a new version is available — you choose when to install it, either from
+the prompt in the toolbar or from **Settings → About**.
 
 Prefer to build it yourself? See [Building from source](#building-from-source)
 below.
