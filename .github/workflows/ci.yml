@@ -33,11 +33,19 @@ jobs:
       - run: npm test
 
   rust:
-    runs-on: ubuntu-latest
+    # windows-latest is not optional: the cfg!(windows) branches in integrations.rs
+    # and pty.rs are never compiled on Linux, so a Windows-only break used to
+    # surface only at release time (tauri-action builds, it does not test).
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v5
 
       - name: Install Tauri system dependencies
+        if: matrix.platform == 'ubuntu-latest'
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -60,21 +68,57 @@ jobs:
 
       # tauri's generate_context! requires frontendDist (../dist) to exist at
       # compile time; a stub avoids running the full vite build in this job.
+      # shell: bash because PowerShell has no `mkdir -p` and no `touch`.
       - name: Stub frontendDist for tauri codegen
+        shell: bash
         run: mkdir -p dist && touch dist/index.html
 
+      # rustfmt/clippy are platform-independent lints — run them once on Linux
+      # and leave the Windows leg to compile + test only (cargo test compiles
+      # everything, which is what gives the cfg!(windows) branches coverage).
       - name: rustfmt
+        if: matrix.platform == 'ubuntu-latest'
         run: cargo fmt --check
         working-directory: src-tauri
 
       - name: clippy
+        if: matrix.platform == 'ubuntu-latest'
         run: cargo clippy --all-targets -- -D warnings
         working-directory: src-tauri
 
       # default_shell_spawns_in_pty falls back to /bin/zsh on Unix, which is
       # not installed on GitHub runners — point it at bash explicitly.
-      - name: cargo test
+      - name: cargo test (Linux)
+        if: matrix.platform == 'ubuntu-latest'
         run: cargo test
         working-directory: src-tauri
         env:
           HELM_SHELL: /bin/bash
+
+      # HELM_SHELL must stay unset here: default_shell_command resolves
+      # pwsh/powershell from PATH on Windows, and pointing it at /bin/bash
+      # would make the PTY test spawn a program that does not exist.
+      - name: cargo test (Windows)
+        if: matrix.platform == 'windows-latest'
+        run: cargo test
+        working-directory: src-tauri
+
+      # Parse-only check of the forwarder scripts installed by integrations.rs.
+      # The Rust tests can only assert on their text; this catches real
+      # PowerShell syntax errors, which previously surfaced at release time.
+      - name: PowerShell syntax check
+        if: matrix.platform == 'windows-latest'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          foreach ($f in @('helm-hook.ps1', 'helm-statusline.ps1')) {
+            $path = Join-Path 'src-tauri/scripts' $f
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile(
+              (Resolve-Path $path), [ref]$null, [ref]$errors) | Out-Null
+            if ($errors) {
+              Write-Host "::error file=$path::$($errors -join '; ')"
+              exit 1
+            }
+            Write-Host "$f parsed OK"
+          }
