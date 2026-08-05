@@ -76,13 +76,26 @@ import "./App.css";
 let bootstrapped = false;
 
 // 關窗流程已經在跑（onCloseRequested 的 destroy() 不會再觸發自己，但使用者連按
-// 兩次關閉鈕會，第二次不該再 flush 一輪）。
+// 兩次關閉鈕會，第二次不該再 flush 一輪 —— 但仍然要 destroy，見下方註解）。
 let closingWindow = false;
+
+/** flush 的上限。寫檔卡住不該讓使用者關不掉 app。 */
+const CLOSE_FLUSH_TIMEOUT_MS = 2_000;
 
 /**
  * 關窗前把快照寫出去。用 destroy() 而非 close()，否則這個 handler 會再觸發一次。
  * 已知不覆蓋 ⌘Q / app terminate / crash（JS 攔不住那條路），所以快照的設計是
  * 「過期仍正確」而非「必須最新」。
+ *
+ * **這個 handler 的每一條路徑都必須走到 destroy()**：Rust 端只要看到視窗有
+ * `tauri://close-requested` 的 JS listener 就無條件攔下關窗（tauri
+ * `manager/window.rs` 的 `has_js_listener` → `prevent_close`，跟我們有沒有
+ * preventDefault 無關），所以任何提早 return 或未接的 rejection 都不是「這次沒
+ * flush」而是「視窗從此關不掉」。flush 因此包在 catch + timeout 裡，重複的關窗
+ * 請求也只跳過 flush、照樣 destroy。
+ *
+ * destroy() 另外需要 capability `core:window:allow-destroy`（不在
+ * `core:window:default` 裡）—— 少了它就是上述死結，見 capabilities/default.json。
  *
  * getCurrentWindow() 在沒有 Tauri runtime 時是**同步 throw**（讀不到
  * __TAURI_INTERNALS__），不是回一個會 reject 的 promise —— 所以必須 try/catch。
@@ -94,12 +107,23 @@ function installCloseFlush(): void {
     const win = getCurrentWindow();
     void win
       .onCloseRequested(async (e) => {
-        if (closingWindow) return;
-        closingWindow = true;
         e.preventDefault();
-        await flushSnapshot();
-        await flushScrollback();
-        await win.destroy();
+        if (!closingWindow) {
+          closingWindow = true;
+          await Promise.race([
+            (async () => {
+              await flushSnapshot();
+              await flushScrollback();
+            })().catch(() => {}),
+            new Promise((resolve) => setTimeout(resolve, CLOSE_FLUSH_TIMEOUT_MS)),
+          ]);
+        }
+        try {
+          await win.destroy();
+        } catch (err) {
+          // 走到這裡代表視窗關不掉，而畫面上只會「沒反應」—— 留下痕跡才查得到。
+          console.error("[helm] window.destroy() failed; window cannot close:", err);
+        }
       })
       .catch(() => {});
   } catch {
