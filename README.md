@@ -185,14 +185,53 @@ them for instant, precise detection:
   needs approval (including the exact command or file), when a turn ends,
   and which files changed. Outside Helm the hook does nothing.
 - **Claude Code statusline** — a separate opt-in install that also reports
-  live cost and remaining context. If you already have a custom statusline,
-  Helm won't touch it.
+  live cost, remaining context, and plan usage. If you already have a
+  custom statusline, Helm won't touch it — see below to wire it up by hand.
 - **Codex notifications** — Codex can emit desktop-notification escape
   codes that Helm reads directly. Copy the two-line snippet shown in
   Settings into the `[tui]` section of `~/.codex/config.toml`.
 
 Screen reading stays on as a fallback, so everything keeps working if you
 skip this — approvals just take a moment longer to detect.
+
+### Integrating a statusline you already have
+
+Helm never rewrites a statusline you wrote yourself, so if
+`~/.claude/settings.json` already has a `statusLine`, Settings shows
+*Custom statusline exists; integrate manually* instead of an Install
+button. Adding the forwarding takes three lines at the front of your own
+command:
+
+```sh
+input=$(cat)
+[ -z "$HELM_EVENT_PORT" ] || printf '%s' "$input" | curl -s -m 2 -X POST \
+  "http://127.0.0.1:$HELM_EVENT_PORT/hook?session=$HELM_SESSION_ID&source=claude-code-statusline" \
+  --data-binary @- >/dev/null 2>&1
+# ...your existing statusline, reading $input instead of stdin
+```
+
+Four things matter:
+
+- **Read stdin once.** `input=$(cat)` up front, then use `$input` for both
+  the forwarding and your own formatting — a second `cat` gets nothing.
+- **Forward the JSON unchanged.** Helm parses cost, context window and plan
+  rate limits out of Claude Code's own payload; whatever you print for
+  yourself is irrelevant to it.
+- **Keep `source=claude-code-statusline` exactly.** Statusline payloads
+  carry no event name, so that string is how Helm tells them apart from
+  hook events.
+- **Stay quiet and bounded.** `-s -m 2` and `>/dev/null` — this runs on
+  every repaint, so it must not block, and anything it prints would land in
+  your status line.
+
+`HELM_EVENT_PORT` and `HELM_SESSION_ID` are injected into each of Helm's
+PTYs and inherited by the CLI, so the `[ -z … ] ||` guard makes the same
+statusline work unchanged in iTerm, VS Code, or a plain terminal.
+
+Settings will keep reporting the statusline as custom rather than
+installed — that check looks for Helm's own script path, not for the
+forwarding. Restart your Claude Code sessions afterwards; the statusline
+command is read at startup.
 
 ## Command Palette
 
