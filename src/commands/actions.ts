@@ -51,7 +51,14 @@ export function activateSession(id: string): void {
   if (target) expandWorkspace(target.workspaceId);
   // Terminal's focused-effect does not rerun when activeId is unchanged,
   // and the DOM updates after the next render — focus explicitly, post-paint.
-  requestAnimationFrame(() => focusActiveTerminal());
+  requestAnimationFrame(() => {
+    // Double-clicking a sidebar row activates it *and* opens the rename box, so
+    // this rAF (queued by the first click) would land after React mounts the
+    // input and blur-commit it. Same reasoning as renameActiveSession below:
+    // the input's own autoFocus wins.
+    if (useUiStore.getState().renamingSessionId) return;
+    focusActiveTerminal();
+  });
 }
 
 /** A workspace's default folder (new sessions start here), or undefined when unset. */

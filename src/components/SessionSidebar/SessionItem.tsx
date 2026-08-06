@@ -159,14 +159,22 @@ export const SessionItem = memo(function SessionItem({
       // A draggable ancestor breaks text selection inside the input in WebKit.
       draggable={!renaming && !confirming}
       onDragStart={onDragStart}
+      // Rename starts on the second mousedown, not on dblclick: WebKitGTK hands
+      // the gesture to the drag machinery once `draggable` is set, and the
+      // dblclick event never arrives (same family of WebKit quirks as the
+      // selection note above). mousedown still fires, and detail === 2 is
+      // exactly "second click of a double-click".
+      onMouseDown={(e) => {
+        if (e.detail === 2 && e.button === 0 && !renaming && !confirming) {
+          e.preventDefault();
+          onRenameStart();
+        }
+      }}
       onClick={() => {
         // While confirming, a click anywhere outside the ✓/✕ buttons cancels —
         // the mouse equivalent of the cancel-and-swallow key rule.
         if (confirming) setPendingAction(null);
         else if (!renaming) activateSession(s.id);
-      }}
-      onDoubleClick={() => {
-        if (!renaming) onRenameStart();
       }}
       onKeyDown={onKeyDown}
     >

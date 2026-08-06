@@ -473,12 +473,14 @@ function TerminalImpl({
     requestAnimationFrame(() => {
       try {
         fit.fit();
-        term.focus();
+        // Double-clicking an inactive session's sidebar row activates this pane
+        // *and* opens its rename box; grabbing focus here would blur-commit it.
+        if (useUiStore.getState().renamingSessionId !== id) term.focus();
       } catch {
         /* ignore */
       }
     });
-  }, [focused]);
+  }, [focused, id]);
 
   // Visible ⇢ refit (display just flipped from none; dimensions are valid by
   // rAF time). The DOM renderer needs no attach/detach across visibility.
