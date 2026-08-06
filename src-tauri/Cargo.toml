@@ -1,6 +1,6 @@
 [package]
 name = "helm"
-version = "0.16.1"
+version = "0.16.2"
 description = "Agent-aware terminal: detects CLI agents in each session and surfaces their state, approvals, and usage"
 authors = ["Aries Chao"]
 edition = "2021"
