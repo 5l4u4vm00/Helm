@@ -5,6 +5,7 @@ mod fonts;
 mod git;
 mod hookserver;
 mod integrations;
+pub mod launch;
 mod notify;
 mod paths;
 mod pty;
@@ -185,12 +186,20 @@ pub fn run() {
         NSUserDefaults::standardUserDefaults()
             .setBool_forKey(false, ns_string!("ApplePressAndHoldEnabled"));
     }
+    // argv 必須在 builder 之前讀：single-instance 註冊後，第二個行程會直接退出。
+    let startup_folder = launch::capture_startup_folder();
     tauri::Builder::default()
+        // 必須是第一個 plugin（Tauri 官方要求）：後續啟動的行程在這裡就被攔下，
+        // 把資料夾轉給既有視窗（見 src/launch.rs）。
+        .plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
+            launch::handle_second_instance(app, args, cwd);
+        }))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(PtyManager::default())
         .manage(HookServer::default())
+        .manage(startup_folder)
         .setup(|app| {
             // Hook 事件接收器：失敗不擋啟動（agent 偵測退回 viewport 掃描）。
             if let Err(e) = hookserver::start(app.handle().clone(), &app.state::<HookServer>()) {
@@ -229,6 +238,7 @@ pub fn run() {
             fonts::list_monospace_fonts,
             git::git_diff_file,
             paths::dir_exists,
+            launch::launch_folder,
             notify::notify_session,
             notify::notification_status,
             notify::open_notification_settings,

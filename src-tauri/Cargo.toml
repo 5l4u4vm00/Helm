@@ -42,6 +42,9 @@ portable-pty = "0.8"
 fontdb = "0.23"
 # Localhost receiver for CLI agent hook events (see src/hookserver.rs).
 tiny_http = "0.12"
+# "在資料夾開啟 Helm" 再啟動一次時，把 argv 轉進既有視窗而非開第二個 app
+# （見 src/launch.rs）。deep-link feature 用不到，維持關閉。
+tauri-plugin-single-instance = { version = "2", default-features = false }
 
 # Desktop notifications with click-to-activate callbacks. The official
 # tauri-plugin-notification cannot detect desktop clicks, so each platform uses

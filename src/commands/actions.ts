@@ -14,6 +14,7 @@ import {
 import { resolveResumePlan, type ResumePlan } from "../agents/resume";
 import { groupTreeOf, useLayoutStore } from "../store/layout";
 import { useWorkspaceStore, expandWorkspace } from "../store/workspaces";
+import { findWorkspaceByFolder, workspaceNameForFolder } from "../store/launchFolder";
 import {
   DEFAULT_WORKSPACE_ID,
   clusterBySplitGroup,
@@ -75,6 +76,40 @@ export function newSession(launcher?: AgentLauncher, workspaceId?: string): void
   // restart — so bootstrap can land in a workspace the user left collapsed.
   expandWorkspace(targetWs);
   requestAnimationFrame(() => focusActiveTerminal());
+}
+
+/**
+ * Open a session for a folder Helm was launched from (`helm .`, Explorer
+ * context menu, or a second launch forwarded by single-instance).
+ *
+ * Reuses the workspace already bound to that folder so relaunching the same
+ * project keeps landing in one place; otherwise creates a workspace named
+ * after the folder. Either way the session's cwd is the folder, so the shell
+ * starts there — no `cd` command is written into the PTY, which would race
+ * with the shell's own startup and be visible in the scrollback.
+ *
+ * Returns the workspace id used.
+ */
+export function openFolderSession(folder: string): string {
+  const workspaceStore = useWorkspaceStore.getState();
+  const existing = findWorkspaceByFolder(
+    workspaceStore.workspaces,
+    folder,
+    navigator.platform.startsWith("Win"),
+  );
+  let targetWs = existing?.id;
+  if (!targetWs) {
+    targetWs = workspaceStore.createWorkspace();
+    workspaceStore.renameWorkspace(targetWs, workspaceNameForFolder(folder));
+    workspaceStore.setWorkspaceFolder(targetWs, folder);
+  }
+  // Deliberately not newSession(): that reads the folder back through
+  // folderForWorkspace, which would miss a workspace created microseconds ago
+  // if the store write had not settled. Pass the folder we already have.
+  useSessionStore.getState().createSession(undefined, targetWs, folder);
+  expandWorkspace(targetWs);
+  requestAnimationFrame(() => focusActiveTerminal());
+  return targetWs;
 }
 
 /** Put the active session's sidebar row into rename mode (palette / Ctrl+A r). */

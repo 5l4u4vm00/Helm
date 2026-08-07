@@ -55,7 +55,8 @@ import { runCommand } from "./commands/registry";
 import { listen } from "@tauri-apps/api/event";
 import { readImageDataUrl } from "./ipc/background";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { activateSession, newSession } from "./commands/actions";
+import { activateSession, newSession, openFolderSession } from "./commands/actions";
+import { getLaunchFolder, onOpenFolder } from "./ipc/launch";
 import { setMenuLanguage } from "./ipc/menu";
 import { checkForUpdate } from "./ipc/update";
 import { useUpdateStore } from "./store/update";
@@ -581,11 +582,21 @@ function App() {
       // 必須在 initRegistry 之後：restore 出來的 agent pane 需要 profile 才能
       // 決定 streamEnabled 與 resume 指令。
       const restored = await restoreFromSnapshot();
-      if (!restored) {
+      // 從資料夾啟動（`helm .`、檔案總管右鍵）：在該資料夾開一個 session。
+      // 必須在「沒有快照就開新 session」之前判斷，否則冷啟動會多開一個空的。
+      const launchedFolder = await getLaunchFolder();
+      if (launchedFolder) {
+        openFolderSession(launchedFolder);
+      } else if (!restored) {
         // Via newSession (not createSession) so it picks up the focused
         // workspace's persisted folder and expands it if left collapsed.
         newSession();
       }
+      // App 已在執行時又從資料夾啟動一次：single-instance 已把視窗帶到前景，
+      // 這裡只負責補上 session。
+      void onOpenFolder((folder) => {
+        openFolderSession(folder);
+      });
       startSessionPersistence();
       startScrollbackPersistence();
       startStaleBusyWatchdog();
