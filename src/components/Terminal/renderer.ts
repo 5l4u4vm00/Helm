@@ -100,13 +100,30 @@ export function attachRenderer(term: XTerm): RendererHandle {
  *
  * 三件事對每一種 renderer 都成立：clearTextureAtlas 是轉給當下的 renderer（內建
  * DOM renderer 沒有 atlas，那一步就是 no-op），refresh 才是真正逼出畫面的那步。
+ *
+ * fit() 只在 pane 真的有尺寸時做：隱藏的 pane（data-in-layout="false" →
+ * display:none）容器是 0×0，此時 fit() 會把格子夾成 9×5 之類的最小值，而還原重播
+ * 的裸 write 會把該寬度的斷行永久烙進 buffer（見 Terminal.tsx 的重播段落）。
+ * 0 尺寸時保留現有格子，等 pane 顯示出來由 ResizeObserver 補 fit。
  */
 export function repaintAfterFontChange(term: XTerm, fit: FitAddon): void {
   try {
     term.clearTextureAtlas();
-    fit.fit();
+    if (hasSize(term)) fit.fit();
     term.refresh(0, term.rows - 1);
   } catch {
     /* ignore */
+  }
+}
+
+/** pane 是否有可量測的尺寸（0×0 = 隱藏或尚未版面配置）。讀不到就當成有尺寸，
+ * 維持修正前的行為 —— 這道防護是為了擋 0 尺寸，不該自己變成新的失敗點。 */
+function hasSize(term: XTerm): boolean {
+  try {
+    const el = term.element?.parentElement ?? term.element;
+    if (!el) return true;
+    return el.clientWidth > 0 && el.clientHeight > 0;
+  } catch {
+    return true;
   }
 }
