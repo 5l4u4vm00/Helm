@@ -1,4 +1,13 @@
-import { lazy, memo, Suspense, useEffect, useMemo, useState, type CSSProperties } from "react";
+import {
+  lazy,
+  memo,
+  Suspense,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
 import { Terminal } from "./components/Terminal/Terminal";
 import { SessionSidebar } from "./components/SessionSidebar/SessionSidebar";
 import { ApprovalPanel } from "./components/ApprovalPanel/ApprovalPanel";
@@ -54,6 +63,10 @@ import { usePrefixStore } from "./store/prefix";
 import { WhichKey } from "./components/WhichKey/WhichKey";
 import { runCommand } from "./commands/registry";
 import { listen } from "@tauri-apps/api/event";
+import { onFileDrop } from "./ipc/fileDrop";
+import { buildDropInput } from "./components/Terminal/fileDrop";
+import { resolveDropTarget, toAreaPoint, type DropCandidate } from "./components/Terminal/dropTarget";
+import { ptyWrite } from "./ipc/pty";
 import { readImageDataUrl } from "./ipc/background";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { activateSession, newSession, openFolderSession } from "./commands/actions";
@@ -205,6 +218,10 @@ function LazyOverlays() {
 
 // 未分組 session 的全幅 rect（與群組 leaf rect 走同一條 inline style 路徑）。
 const FULL_RECT: RectPct = { top: 0, left: 0, width: 100, height: 100 };
+
+// 拖放路徑要用哪一套 shell 引號規則。判斷的是 shell 而非 OS 外觀，但兩者在這裡
+// 一致：Windows 上 PTY 跑的是 pwsh/powershell（見 pty.rs），其餘平台是 POSIX shell。
+const IS_WINDOWS = navigator.platform.startsWith("Win");
 
 // leaf rect（百分比）→ pane 的 inline style。
 function rectStyle(rect: RectPct): CSSProperties {
@@ -508,6 +525,56 @@ function App() {
     [layoutRoot],
   );
 
+  // 拖放命中判定需要 terminal-area 的實際幾何（Tauri 給的是視窗座標）。
+  const terminalAreaRef = useRef<HTMLDivElement>(null);
+  // 目前畫面上「看得見」的 pane 矩形；只有這些能當拖放目標，隱藏的 pane
+  // （不在 active 群組中）沒有 rect，拖到它們身上在視覺上根本不可能。
+  const visibleRects = useMemo<DropCandidate[]>(() => {
+    if (layoutRoot === null) {
+      return activeId ? [{ sessionId: activeId, rect: FULL_RECT }] : [];
+    }
+    return [...layout.leaves].map(([sessionId, rect]) => ({ sessionId, rect }));
+  }, [layoutRoot, layout, activeId]);
+  // 事件處理器透過 ref 讀最新值：訂閱只在掛載時建立一次，否則每次分割/切換
+  // session 都要重訂閱一次 OS 拖放事件。寫入放在 effect 而非 render 中 ——
+  // render 期間改 ref 會在 StrictMode 的雙次 render 下寫入兩次。
+  const dropStateRef = useRef({ candidates: visibleRects, activeId });
+  useEffect(() => {
+    dropStateRef.current = { candidates: visibleRects, activeId };
+  }, [visibleRects, activeId]);
+
+  // OS 檔案拖放 → 把加好引號的絕對路徑當成鍵盤輸入寫進落點 pane 的 PTY。
+  // 這正是 Windows Terminal 的行為，也是 CLI agent（Claude Code 等）讀圖片的
+  // 途徑：它們收到的只是一串路徑，自己去開檔。
+  //
+  // 刻意**不送 Enter**：路徑通常是句子的一部分（「看看這張圖 <path>」），替使用
+  // 者送出會打斷正在輸入的內容，而且變成無法收回的動作。
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    let disposed = false;
+    void onFileDrop(({ paths, x, y }) => {
+      const area = terminalAreaRef.current?.getBoundingClientRect();
+      if (!area) return;
+      const { candidates, activeId: fallbackId } = dropStateRef.current;
+      const target = resolveDropTarget(toAreaPoint(x, y, area), candidates, fallbackId);
+      if (!target) return; // 一個 session 都沒有：無處可寫
+      const input = buildDropInput(paths, IS_WINDOWS ? "windows" : "posix");
+      if (!input) return; // 全是空路徑：不要送出空輸入
+      // 拖放同時把該 pane 帶到前景，跟點擊 pane 的行為一致 —— 否則使用者拖完
+      // 還得再點一下才能接著打字。
+      useSessionStore.getState().setActive(target);
+      void ptyWrite(target, input);
+      focusActiveTerminal();
+    }).then((fn) => {
+      if (disposed) fn();
+      else unlisten = fn;
+    });
+    return () => {
+      disposed = true;
+      unlisten?.();
+    };
+  }, []);
+
   // 全域快捷鍵：tmux 風格 prefix（Ctrl+A）狀態機優先，pass 才落回 KEYMAP
   // 直接綁定（現在只剩 ⌘⇧P）。capture phase：搶在 xterm 的按鍵處理之前，
   // 武裝後的第二鍵無論比中與否都吞掉（tmux 行為），絕不進入終端。
@@ -669,7 +736,7 @@ function App() {
         {/* 同一組 pane 始終掛載；可見性只靠 data 屬性 + inline style 切換，避免重建終端。
             群組樹只算幾何，rect 以 inline style 套在平鋪 pane 上（不在群組中的隱藏）；
             未分組的 active session 拿全幅 rect（data-solo 只去除邊框，標題列一律顯示）。 */}
-        <div className="terminal-area" data-focus-region="terminal">
+        <div className="terminal-area" data-focus-region="terminal" ref={terminalAreaRef}>
           {sessions.map((s) => {
             const rect =
               layout.leaves.get(s.id) ??
