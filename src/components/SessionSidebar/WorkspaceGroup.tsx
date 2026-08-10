@@ -49,6 +49,7 @@ export const WorkspaceGroup = memo(function WorkspaceGroup({
   const setRenamingId = useUiStore((s) => s.setRenamingWorkspaceId);
   const pendingAction = useUiStore((s) => s.sidebarPendingAction);
   const setPendingAction = useUiStore((s) => s.setSidebarPendingAction);
+  const setRecipeWorkspaceId = useUiStore((s) => s.setRecipeWorkspaceId);
   const onRenameStart = () => setRenamingId(w.id);
   const onRenameEnd = () => setRenamingId(null);
   const confirming = pendingAction?.kind === "delete-workspace" && pendingAction.id === w.id;
@@ -274,6 +275,20 @@ export const WorkspaceGroup = memo(function WorkspaceGroup({
             onDoubleClick={(e) => e.stopPropagation()}
           >
             📁
+          </button>
+        )}
+        {!confirming && (
+          <button
+            className={`icon-btn hover-action ${w.recipe ? "on" : ""}`}
+            title={t("sidebar.editRecipe")}
+            tabIndex={-1}
+            onClick={(e) => {
+              e.stopPropagation();
+              setRecipeWorkspaceId(w.id);
+            }}
+            onDoubleClick={(e) => e.stopPropagation()}
+          >
+            ⚙
           </button>
         )}
         {!confirming && (

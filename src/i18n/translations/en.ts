@@ -137,6 +137,7 @@ export const en: Record<string, string> = {
   "sidebar.clearFolder": "Clear default folder",
   "sidebar.folderMissing":
     "This folder is not reachable right now — new sessions will start in your home directory.",
+  "sidebar.editRecipe": "Startup environment and command for new sessions",
   "sidebar.close": "Close",
   "sidebar.renameSession":
     "Rename (double-click, or F2 / r) — clear the name to go back to the automatic one",
@@ -331,4 +332,25 @@ export const en: Record<string, string> = {
   "shortcut.terminal.ctrlSlash": "Sends 0x1F, so <C-/> works in nvim and friends",
   "shortcut.terminal.copySelection": "Copies when there is a selection, otherwise interrupts",
   "shortcut.terminal.selectAll": "Arms the prefix; in a text field it stays select-all",
+
+  "workspaceRecipe.dialogLabel": "Startup recipe for {name}",
+  "workspaceRecipe.title": "Startup recipe — {name}",
+  "workspaceRecipe.hint":
+    "Applied when a new session is created in this workspace. Sessions already running are not affected.",
+  "workspaceRecipe.envHeading": "Environment variables",
+  "workspaceRecipe.envHint": "Passed to every new session in this workspace. {keys} are set by Helm and cannot be overridden.",
+  "workspaceRecipe.envKeyPlaceholder": "NAME",
+  "workspaceRecipe.envValuePlaceholder": "value",
+  "workspaceRecipe.addEnv": "+ Add variable",
+  "workspaceRecipe.removeEnv": "Remove this variable",
+  "workspaceRecipe.commandHeading": "Startup command",
+  "workspaceRecipe.commandHint":
+    "Typed into the shell when you create a new session here. Skipped when you pick an agent from the launcher menu, and never run on restore or when opening a folder.",
+  "workspaceRecipe.commandPlaceholder": "claude",
+  "workspaceRecipe.errorNoKey": "Enter a name for this variable, or remove the row.",
+  "workspaceRecipe.errorBadKey": "Use letters, digits and underscore only, not starting with a digit.",
+  "workspaceRecipe.errorReservedKey": "Helm sets this variable itself; pick another name.",
+  "workspaceRecipe.errorDuplicateKey": "This variable is already set above.",
+  "workspaceRecipe.cancel": "Cancel",
+  "workspaceRecipe.save": "Save",
 };

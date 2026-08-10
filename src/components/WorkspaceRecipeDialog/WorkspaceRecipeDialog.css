@@ -1,0 +1,162 @@
+/* Workspace recipe editor. Overlay geometry and tokens follow
+   CommandPalette.css / SettingsDialog.css so overlays stay one visual family. */
+.recipe-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+}
+
+.recipe-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.recipe-dialog {
+  position: absolute;
+  top: max(16px, 10%);
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(560px, 92vw);
+  max-height: calc(100vh - max(16px, 10%) - 16px);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  background: var(--sidebar-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  overflow: hidden;
+}
+
+.recipe-header {
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.recipe-header h2 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--fg);
+}
+
+.recipe-hint {
+  margin: 4px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.recipe-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 4px 16px 12px;
+}
+
+.recipe-section {
+  margin-top: 14px;
+}
+
+.recipe-section h3 {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+.recipe-env-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+/* Key and value share a row; the error message spans the full width beneath so
+   a long message never squeezes the inputs. */
+.recipe-env-row {
+  display: grid;
+  grid-template-columns: minmax(0, 4fr) minmax(0, 6fr) auto;
+  align-items: center;
+  gap: 6px;
+}
+
+.recipe-dialog input {
+  min-width: 0;
+  padding: 6px 8px;
+  background: var(--app-bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--fg);
+  font-family: inherit;
+  font-size: 13px;
+  outline: none;
+}
+
+.recipe-dialog input:focus {
+  border-color: var(--active);
+}
+
+/* #f38ba8 is the same error tone the status dots and exited state use
+   (SessionSidebar.css); the palette is literal there, so it is literal here. */
+.recipe-dialog input[aria-invalid="true"] {
+  border-color: #f38ba8;
+}
+
+.recipe-env-key {
+  font-family: monospace;
+}
+
+.recipe-error {
+  grid-column: 1 / -1;
+  font-size: 11px;
+  color: #f38ba8;
+}
+
+.recipe-command {
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 8px;
+  font-family: monospace;
+}
+
+.recipe-add-env,
+.recipe-footer button {
+  padding: 5px 12px;
+  background: var(--app-bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--fg);
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.recipe-add-env {
+  margin-top: 8px;
+}
+
+.recipe-add-env:hover,
+.recipe-footer button:hover:not(:disabled) {
+  background: var(--hover);
+}
+
+.recipe-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 10px 16px;
+  border-top: 1px solid var(--border);
+}
+
+.recipe-footer button.primary {
+  background: var(--active);
+}
+
+.recipe-footer button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

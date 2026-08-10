@@ -56,6 +56,8 @@ interface TerminalProps {
   visible: boolean;
   cwd?: string;
   shell?: string;
+  /** Workspace recipe 快照下來的額外環境變數（建立時決定，之後不變）。 */
+  env?: Record<string, string>;
   /** 啟動後送進 PTY 的指令（例如啟動某個 agent）。 */
   launchCommand?: string;
   /** 是否需要 onStream 文字（session 有 agent 且 profile 有 extract）；
@@ -107,6 +109,7 @@ function TerminalImpl({
   visible,
   cwd,
   shell,
+  env,
   launchCommand,
   streamEnabled,
   onTitle,
@@ -152,6 +155,12 @@ function TerminalImpl({
   const streamEnabledRef = useRef(streamEnabled);
   // eslint-disable-next-line react-hooks/refs
   streamEnabledRef.current = streamEnabled;
+  // Latest-ref 模式（同 cbRef）：spawn 當下讀一次。刻意不進主 effect 的 deps ——
+  // env 是新物件 identity，放進去等於每次 render 都重開 PTY。它本來就只在
+  // session 建立時決定、之後不變，所以 spawn 時的值就是唯一正確的值。
+  const envRef = useRef(env);
+  // eslint-disable-next-line react-hooks/refs
+  envRef.current = env;
 
   useEffect(() => {
     const container = containerRef.current;
@@ -319,7 +328,14 @@ function TerminalImpl({
 
     const spawnPty = (spawnCwd: string | undefined) =>
       ptySpawn(
-        { id, cols: term.cols, rows: term.rows, cwd: spawnCwd, shell: effectiveShell },
+        {
+          id,
+          cols: term.cols,
+          rows: term.rows,
+          cwd: spawnCwd,
+          shell: effectiveShell,
+          env: envRef.current,
+        },
         (bytes) => {
           // The channel has no unlisten: a message can land between React
           // cleanup and the Rust reader noticing pty_kill, and term.write on
@@ -562,4 +578,6 @@ export const Terminal = memo(
     prev.shell === next.shell &&
     prev.launchCommand === next.launchCommand &&
     prev.streamEnabled === next.streamEnabled,
+  // env 刻意不比：它只在 spawn 當下經 envRef 讀取，而 session 的 env 建立後就
+  // 不再變。比對它（新物件 identity）只會讓每次 render 都重繪，換不到任何東西。
 );

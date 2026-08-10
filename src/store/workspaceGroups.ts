@@ -4,12 +4,99 @@
 
 export const DEFAULT_WORKSPACE_ID = "default";
 
+/**
+ * Per-workspace startup recipe: the environment and first command that new
+ * sessions in this workspace inherit. `folder` is the same idea and predates
+ * this type, so it stays a sibling field on Workspace rather than moving in.
+ *
+ * Both halves are snapshotted at session-creation time, exactly like `folder`:
+ * editing a recipe never reaches back into sessions that are already running.
+ */
+export interface WorkspaceRecipe {
+  /** Extra PTY environment variables. Never overrides Helm's own (see RESERVED_ENV_KEYS). */
+  env?: Record<string, string>;
+  /** Written into the PTY as the session's first input line. */
+  command?: string;
+}
+
 export interface Workspace {
   id: string;
   name: string;
   collapsed: boolean;
   /** Default working directory for new sessions created in this workspace. */
   folder?: string;
+  /** Startup env / command for new sessions created in this workspace. */
+  recipe?: WorkspaceRecipe;
+}
+
+/**
+ * Environment variables a recipe may not set. The first two are how a hook
+ * process finds its way back to *this* session (see hookserver.rs); letting a
+ * recipe overwrite them would misroute or silently kill agent awareness, which
+ * surfaces as "Helm stopped detecting my agent" and is near-undebuggable from
+ * the UI. TERM is here because xterm.js is what actually decides the emulator's
+ * capabilities — a mismatched TERM produces corrupted output, not a nicer one.
+ */
+export const RESERVED_ENV_KEYS: readonly string[] = [
+  "HELM_SESSION_ID",
+  "HELM_EVENT_PORT",
+  "TERM",
+];
+
+/**
+ * Validate one env key. POSIX allows more, but every shell agrees on this
+ * subset, and a key containing `=` or whitespace cannot be exported at all —
+ * the kind of entry that fails silently inside the child process rather than
+ * at the point the user typed it.
+ */
+export function isValidEnvKey(key: string): boolean {
+  return /^[A-Za-z_][A-Za-z0-9_]*$/.test(key);
+}
+
+/** Whether a key is rejected because Helm owns it. Case-insensitive on Windows,
+ *  whose environment block is case-insensitive — `helm_session_id` would
+ *  otherwise pass here and then clobber the real one at spawn. */
+export function isReservedEnvKey(key: string, windows: boolean): boolean {
+  return windows
+    ? RESERVED_ENV_KEYS.some((k) => k.toLowerCase() === key.toLowerCase())
+    : RESERVED_ENV_KEYS.includes(key);
+}
+
+/**
+ * Drop entries a recipe must not carry: malformed keys and Helm-owned ones.
+ * Applied when saving and again at spawn — a recipe can reach the spawn path
+ * from localStorage that an older build (or a hand edit) wrote.
+ */
+export function sanitizeRecipeEnv(
+  env: Record<string, string> | undefined,
+  windows: boolean,
+): Record<string, string> | undefined {
+  if (!env) return undefined;
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(env)) {
+    if (typeof value !== "string") continue;
+    if (!isValidEnvKey(key)) continue;
+    if (isReservedEnvKey(key, windows)) continue;
+    out[key] = value;
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
+/** Normalize a recipe read back from storage. Returns undefined when empty, so
+ *  an emptied recipe never persists as `{}` and read back as "configured". */
+export function normalizeRecipe(raw: unknown, windows: boolean): WorkspaceRecipe | undefined {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
+  const { env, command } = raw as Record<string, unknown>;
+  const cleanEnv =
+    env && typeof env === "object" && !Array.isArray(env)
+      ? sanitizeRecipeEnv(env as Record<string, string>, windows)
+      : undefined;
+  const cleanCommand = typeof command === "string" && command.trim() !== "" ? command : undefined;
+  if (!cleanEnv && !cleanCommand) return undefined;
+  const out: WorkspaceRecipe = {};
+  if (cleanEnv) out.env = cleanEnv;
+  if (cleanCommand) out.command = cleanCommand;
+  return out;
 }
 
 export interface WorkspaceGroup<S extends { workspaceId: string }> {
@@ -28,19 +115,23 @@ function defaultWorkspace(): Workspace {
  * `id !== DEFAULT_WORKSPACE_ID`, so without it every workspace could be
  * deleted and its sessions orphaned.
  */
-export function normalizeWorkspaces(raw: unknown): Workspace[] {
+export function normalizeWorkspaces(raw: unknown, windows = false): Workspace[] {
   if (!Array.isArray(raw)) return [defaultWorkspace()];
   const seen = new Set<string>();
   const out: Workspace[] = [];
   for (const item of raw) {
     if (!item || typeof item !== "object") continue;
-    const { id, name, collapsed, folder } = item as Record<string, unknown>;
+    const { id, name, collapsed, folder, recipe } = item as Record<string, unknown>;
     if (typeof id !== "string" || id === "") continue;
     if (typeof name !== "string" || typeof collapsed !== "boolean") continue;
     if (folder !== undefined && typeof folder !== "string") continue;
     if (seen.has(id)) continue;
     seen.add(id);
-    out.push(folder === undefined ? { id, name, collapsed } : { id, name, collapsed, folder });
+    const entry: Workspace = { id, name, collapsed };
+    if (folder !== undefined) entry.folder = folder;
+    const cleanRecipe = normalizeRecipe(recipe, windows);
+    if (cleanRecipe) entry.recipe = cleanRecipe;
+    out.push(entry);
   }
   if (out.length === 0) return [defaultWorkspace()];
   if (!seen.has(DEFAULT_WORKSPACE_ID)) out.unshift(defaultWorkspace());

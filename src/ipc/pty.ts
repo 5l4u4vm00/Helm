@@ -8,6 +8,8 @@ export interface SpawnOptions {
   rows: number;
   shell?: string;
   cwd?: string;
+  /** Workspace recipe 帶來的額外環境變數；Helm 自己的變數由 pty.rs 擋下不被覆寫。 */
+  env?: Record<string, string>;
 }
 
 /**

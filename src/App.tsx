@@ -38,6 +38,7 @@ import {
   startSessionPersistence,
 } from "./store/sessionSnapshot";
 import { flushScrollback, startScrollbackPersistence } from "./components/Terminal/scrollback";
+import { focusActiveTerminal } from "./focus/focusUtils";
 import { loadJournalEntries } from "./store/eventJournal";
 import { useNotificationsStore } from "./store/notifications";
 import { customCssVars, useThemeStore } from "./store/theme";
@@ -170,17 +171,34 @@ const ShortcutsHelp = lazy(() =>
   })),
 );
 
+const WorkspaceRecipeDialog = lazy(() =>
+  import("./components/WorkspaceRecipeDialog/WorkspaceRecipeDialog").then((m) => ({
+    default: m.WorkspaceRecipeDialog,
+  })),
+);
+
 function LazyOverlays() {
   const paletteOpen = useUiStore((s) => s.paletteOpen);
   const settingsOpen = useUiStore((s) => s.settingsOpen);
   const diffOpen = useUiStore((s) => s.diffTarget !== null);
   const shortcutsOpen = useUiStore((s) => s.shortcutsOpen);
+  const recipeWorkspaceId = useUiStore((s) => s.recipeWorkspaceId);
+  const setRecipeWorkspaceId = useUiStore((s) => s.setRecipeWorkspaceId);
   return (
     <Suspense fallback={null}>
       {paletteOpen && <CommandPalette />}
       {settingsOpen && <SettingsDialog />}
       {diffOpen && <DiffViewer />}
       {shortcutsOpen && <ShortcutsHelp />}
+      {recipeWorkspaceId && (
+        <WorkspaceRecipeDialog
+          workspaceId={recipeWorkspaceId}
+          onClose={() => {
+            setRecipeWorkspaceId(null);
+            focusActiveTerminal();
+          }}
+        />
+      )}
     </Suspense>
   );
 }
@@ -432,6 +450,7 @@ const Pane = memo(function Pane({ session: s, rect, active, solo }: PaneProps) {
         focused={active}
         visible={rect !== undefined}
         cwd={s.cwd}
+        env={s.env}
         launchCommand={s.launchCommand}
         streamEnabled={streamEnabled}
         onTitle={(title) => handleTitle(s.id, title)}

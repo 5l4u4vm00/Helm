@@ -48,6 +48,14 @@ export interface SnapshotSession {
   createdAt: number;
   workspaceId: string;
   cwd?: string;
+  /**
+   * Workspace recipe 在建立當下快照到這個 session 的環境變數。屬於「歸屬」而
+   * 非「本次執行的觀測值」，和 cwd 同一側：還原出來的 pane 會開新 PTY，那個
+   * PTY 需要和原本一樣的環境，否則 agent 會在不同環境下重跑。
+   * 與 lastLaunchCommand 的差別正是本檔案的分界：env 是被動的環境，寫回去不會
+   * 自己執行任何東西；command 會。
+   */
+  env?: Record<string, string>;
   titleLocked?: boolean;
   agentId: string | null;
   agentLabel?: string;
@@ -80,6 +88,7 @@ export interface ProjectableSession {
   createdAt: number;
   workspaceId: string;
   cwd?: string;
+  env?: Record<string, string>;
   titleLocked?: boolean;
   agentId: string | null;
   agentLabel?: string;
@@ -132,6 +141,7 @@ export function projectSnapshot(input: ProjectSnapshotInput): SessionSnapshot {
       agentId: s.agentId,
     };
     if (s.cwd !== undefined) out.cwd = s.cwd;
+    if (s.env && Object.keys(s.env).length > 0) out.env = { ...s.env };
     if (s.titleLocked) out.titleLocked = true;
     if (s.agentLabel !== undefined) out.agentLabel = s.agentLabel;
     // 還原出來的 session：carried（上次記下的原始啟動指令）優先。理由是它的
@@ -167,6 +177,16 @@ function isStatus(v: unknown): v is SnapshotSessionStatus {
 }
 
 /** 逐欄 typeof 檢查；任一欄不對就丟掉「這一筆」而非整批（同 normalizeWorkspaces）。 */
+/** 快照裡的 env：只收字串→字串的項目，全空則回 undefined（不留 `{}`）。 */
+function normalizeSnapshotEnv(raw: unknown): Record<string, string> | undefined {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof value === "string") out[key] = value;
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
 function normalizeSession(item: unknown): SnapshotSession | null {
   if (!item || typeof item !== "object") return null;
   const {
@@ -176,6 +196,7 @@ function normalizeSession(item: unknown): SnapshotSession | null {
     createdAt,
     workspaceId,
     cwd,
+    env,
     titleLocked,
     agentId,
     agentLabel,
@@ -202,6 +223,11 @@ function normalizeSession(item: unknown): SnapshotSession | null {
   }
   const out: SnapshotSession = { id, title, status, createdAt, workspaceId, agentId };
   if (cwd !== undefined) out.cwd = cwd;
+  // env 逐項挑選而非整個 session 判死：壞掉的環境變數頂多讓 PTY 少一個變數，
+  // 為此丟掉整個 pane（連同它的 cwd、標題、agent 身分）是不成比例的懲罰。
+  // 保留 key 不在這裡擋 —— pty.rs 是最後一道，且它才知道平台大小寫規則。
+  const cleanEnv = normalizeSnapshotEnv(env);
+  if (cleanEnv) out.env = cleanEnv;
   if (titleLocked !== undefined) out.titleLocked = titleLocked;
   if (agentLabel !== undefined) out.agentLabel = agentLabel;
   if (lastLaunchCommand !== undefined) out.lastLaunchCommand = lastLaunchCommand;
@@ -389,6 +415,16 @@ function sameStringArray(a?: readonly string[], b?: readonly string[]): boolean 
   return a.every((x, i) => x === b[i]);
 }
 
+/** env 的等值比較。session 的 env 是建立時快照、之後不變，所以這裡實務上恆真；
+ *  仍然要比，因為它會寫進快照，漏比就等於「改了卻不存檔」。 */
+function sameEnv(a?: Record<string, string>, b?: Record<string, string>): boolean {
+  if (a === b) return true;
+  const aKeys = a ? Object.keys(a) : [];
+  const bKeys = b ? Object.keys(b) : [];
+  if (aKeys.length !== bKeys.length) return false;
+  return aKeys.every((k) => b?.[k] === a?.[k]);
+}
+
 /**
  * 兩個 session 的「會寫進快照」欄位是否等值。刻意不比 cost / tokens /
  * changedFiles / agentState / pendingApproval —— 那些跑在 PTY 輸出頻率上，
@@ -402,6 +438,7 @@ export function snapshotFieldsEqual(a: ProjectableSession, b: ProjectableSession
     a.createdAt === b.createdAt &&
     a.workspaceId === b.workspaceId &&
     a.cwd === b.cwd &&
+    sameEnv(a.env, b.env) &&
     Boolean(a.titleLocked) === Boolean(b.titleLocked) &&
     a.agentId === b.agentId &&
     a.agentLabel === b.agentLabel &&

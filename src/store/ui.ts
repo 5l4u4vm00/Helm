@@ -32,6 +32,9 @@ interface UiState {
   renamingSessionId: string | null;
   /** Destructive sidebar action awaiting inline Enter/Escape confirmation. */
   sidebarPendingAction: SidebarPendingAction | null;
+  /** Workspace whose startup-recipe dialog is open; null when closed.
+   *  Modal, so at most one — same shape as the rename ids above. */
+  recipeWorkspaceId: string | null;
   /** Session whose pane is showing the find bar; null when no pane is searching.
    *  Per-pane rather than global: the bar searches only its own terminal. */
   searchSessionId: string | null;
@@ -48,6 +51,7 @@ interface UiState {
   setRenamingWorkspaceId: (id: string | null) => void;
   setRenamingSessionId: (id: string | null) => void;
   setSidebarPendingAction: (action: SidebarPendingAction | null) => void;
+  setRecipeWorkspaceId: (id: string | null) => void;
   setSearchSessionId: (id: string | null) => void;
   openDiff: (target: DiffTarget) => void;
   closeDiff: () => void;
@@ -65,6 +69,7 @@ export const useUiStore = create<UiState>((set, get) => ({
   renamingWorkspaceId: null,
   renamingSessionId: null,
   sidebarPendingAction: null,
+  recipeWorkspaceId: null,
   searchSessionId: null,
   toggleFiles: () => set({ filesOpen: !get().filesOpen }),
   setFilesOpen: (v) => set({ filesOpen: v }),
@@ -80,6 +85,7 @@ export const useUiStore = create<UiState>((set, get) => ({
   setRenamingWorkspaceId: (id) => set({ renamingWorkspaceId: id, renamingSessionId: null }),
   setRenamingSessionId: (id) => set({ renamingSessionId: id, renamingWorkspaceId: null }),
   setSidebarPendingAction: (action) => set({ sidebarPendingAction: action }),
+  setRecipeWorkspaceId: (id) => set({ recipeWorkspaceId: id }),
   setSearchSessionId: (id) => set({ searchSessionId: id }),
   openDiff: (target) => set({ diffTarget: target }),
   closeDiff: () => set({ diffTarget: null }),

@@ -6,8 +6,10 @@ import { create } from "zustand";
 import {
   DEFAULT_WORKSPACE_ID,
   nextWorkspaceName,
+  normalizeRecipe,
   normalizeWorkspaces,
   type Workspace,
+  type WorkspaceRecipe,
 } from "./workspaceGroups";
 
 interface WorkspaceState {
@@ -17,6 +19,10 @@ interface WorkspaceState {
   renameWorkspace: (id: string, name: string) => void;
   /** Set (or clear) the default working directory for new sessions in this workspace. */
   setWorkspaceFolder: (id: string, folder: string | undefined) => void;
+  /** Set (or clear) the startup env/command for new sessions in this workspace.
+   *  Normalized on the way in, so a reserved or malformed env key never lands
+   *  in the store at all — the UI reports it, the store simply never holds it. */
+  setWorkspaceRecipe: (id: string, recipe: WorkspaceRecipe | undefined) => void;
   /** Remove the workspace itself; refuses the default one. */
   deleteWorkspace: (id: string) => void;
   toggleCollapsed: (id: string) => void;
@@ -24,11 +30,17 @@ interface WorkspaceState {
 
 const STORAGE_KEY = "helm.workspaces";
 
+/** Windows env blocks are case-insensitive, which changes what counts as a
+ *  reserved key. Read once here rather than in the pure helpers, which stay
+ *  platform-agnostic and take it as an argument (same shape as launchFolder.ts). */
+const IS_WINDOWS =
+  typeof navigator !== "undefined" && navigator.platform.startsWith("Win");
+
 function loadWorkspaces(): Workspace[] {
   try {
-    return normalizeWorkspaces(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "[]"));
+    return normalizeWorkspaces(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "[]"), IS_WINDOWS);
   } catch {
-    return normalizeWorkspaces(null);
+    return normalizeWorkspaces(null, IS_WINDOWS);
   }
 }
 
@@ -66,6 +78,15 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
   setWorkspaceFolder: (id, folder) =>
     set((s) => ({
       workspaces: persist(s.workspaces.map((w) => (w.id === id ? { ...w, folder } : w))),
+    })),
+
+  setWorkspaceRecipe: (id, recipe) =>
+    set((s) => ({
+      workspaces: persist(
+        s.workspaces.map((w) =>
+          w.id === id ? { ...w, recipe: normalizeRecipe(recipe, IS_WINDOWS) } : w,
+        ),
+      ),
     })),
 
   deleteWorkspace: (id) => {

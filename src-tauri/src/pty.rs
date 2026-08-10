@@ -48,6 +48,39 @@ pub struct SpawnOptions {
     pub shell: Option<String>,
     /// 工作目錄；None 則用使用者 home。
     pub cwd: Option<String>,
+    /// Workspace recipe 帶來的額外環境變數（見 workspaceGroups.ts）。
+    /// Helm 自己的變數不可被覆寫 —— 前端已濾過一次，這裡再濾一次，
+    /// 因為 hook 路由的正確性不該只靠呼叫端自律。
+    #[serde(default)]
+    pub env: Option<std::collections::HashMap<String, String>>,
+}
+
+/// PTY 環境變數中屬於 Helm 自己、recipe 不得覆寫的 key。
+/// 與前端 RESERVED_ENV_KEYS 對應，兩邊都擋。
+const RESERVED_ENV_KEYS: [&str; 3] = ["HELM_SESSION_ID", "HELM_EVENT_PORT", "TERM"];
+
+/// key 是否為 Helm 保留。Windows 的環境變數區塊不分大小寫，故該平台以
+/// 不分大小寫比對 —— 否則 `helm_session_id` 會繞過檢查再覆蓋掉真正的那個。
+fn is_reserved_env_key(key: &str) -> bool {
+    if cfg!(windows) {
+        RESERVED_ENV_KEYS
+            .iter()
+            .any(|k| k.eq_ignore_ascii_case(key))
+    } else {
+        RESERVED_ENV_KEYS.contains(&key)
+    }
+}
+
+/// 環境變數 key 的合法字元集（與前端 isValidEnvKey 相同）。
+/// 帶 `=` 或空白的 key 在任何 shell 都無法 export，擋在這裡而不是讓它
+/// 在子行程裡無聲失敗。
+fn is_valid_env_key(key: &str) -> bool {
+    let mut chars = key.chars();
+    match chars.next() {
+        Some(c) if c.is_ascii_alphabetic() || c == '_' => {}
+        _ => return false,
+    }
+    chars.all(|c| c.is_ascii_alphanumeric() || c == '_')
 }
 
 /// 在 PATH 中尋找可執行檔（Windows 預設 shell 偵測用）。
@@ -108,6 +141,16 @@ pub fn pty_spawn(
     };
     let mut cmd = CommandBuilder::new(program);
     cmd.args(&args);
+    // Workspace recipe 的環境變數先套用，Helm 自己的隨後覆蓋上去。
+    // 保留 key 已在上面濾掉，此處的順序是第二道保險：即使濾網有漏，
+    // 後寫的 HELM_SESSION_ID / TERM 仍然贏。
+    if let Some(env) = &options.env {
+        for (key, value) in env {
+            if is_valid_env_key(key) && !is_reserved_env_key(key) {
+                cmd.env(key, value);
+            }
+        }
+    }
     cmd.env("TERM", "xterm-256color");
     // Agent hook 整合：CLI spawn 的 hook 程序繼承這兩個變數，把事件精準對回
     // 本 session（見 hookserver.rs）。port = 0 代表 hook server 沒起來，不注入。
@@ -284,5 +327,25 @@ mod tests {
     #[test]
     fn home_dir_resolves() {
         assert!(dirs_home().is_some(), "HOME or USERPROFILE should exist");
+    }
+
+    #[test]
+    fn env_key_validation_matches_shell_rules() {
+        assert!(is_valid_env_key("PATH"));
+        assert!(is_valid_env_key("_UNDERSCORE_1"));
+        assert!(!is_valid_env_key(""), "empty key");
+        assert!(!is_valid_env_key("1LEADING_DIGIT"));
+        assert!(!is_valid_env_key("HAS SPACE"));
+        assert!(!is_valid_env_key("HAS=EQUALS"));
+    }
+
+    #[test]
+    fn helm_owned_env_keys_are_reserved() {
+        assert!(is_reserved_env_key("HELM_SESSION_ID"));
+        assert!(is_reserved_env_key("HELM_EVENT_PORT"));
+        assert!(is_reserved_env_key("TERM"));
+        assert!(!is_reserved_env_key("ANTHROPIC_API_KEY"));
+        // Windows 環境變數不分大小寫，該平台的小寫拼法同樣要擋下。
+        assert_eq!(is_reserved_env_key("helm_session_id"), cfg!(windows));
     }
 }

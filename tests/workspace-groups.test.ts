@@ -3,13 +3,18 @@
 import assert from "node:assert";
 import {
   DEFAULT_WORKSPACE_ID,
+  RESERVED_ENV_KEYS,
   clusterBySplitGroup,
   flattenGroupedIds,
   groupSessions,
+  isReservedEnvKey,
+  isValidEnvKey,
   nextWorkspaceName,
+  normalizeRecipe,
   normalizeWorkspaces,
   pendingApprovalsInWorkspace,
   resolveFocusedWorkspace,
+  sanitizeRecipeEnv,
   sessionsInWorkspace,
   workspaceChangedFileCount,
   type Workspace,
@@ -250,6 +255,118 @@ function sess(
     "非十進位尾綴不算數（Workspace 2x）",
     nextWorkspaceName([ws("a", "Workspace 2x")]) === "Workspace 2",
   );
+}
+
+// --- workspace recipe: env 過濾與正規化 ---
+{
+  console.log("\nsanitizeRecipeEnv:");
+  check("undefined 進 undefined 出", sanitizeRecipeEnv(undefined, false) === undefined);
+  check("全空物件 → undefined（不留 {}）", sanitizeRecipeEnv({}, false) === undefined);
+  check(
+    "正常的 key/value 留下",
+    JSON.stringify(sanitizeRecipeEnv({ NODE_ENV: "development" }, false)) ===
+      JSON.stringify({ NODE_ENV: "development" }),
+  );
+  check("空字串 value 合法（等於設成空值）", sanitizeRecipeEnv({ FOO: "" }, false)?.FOO === "");
+  check(
+    "非字串 value 濾掉",
+    sanitizeRecipeEnv({ FOO: 1 as unknown as string }, false) === undefined,
+  );
+
+  // key 形狀：擋在這裡，而不是讓它在子行程裡無聲失敗
+  check("數字開頭的 key 濾掉", sanitizeRecipeEnv({ "1BAD": "x" }, false) === undefined);
+  check("含空白的 key 濾掉", sanitizeRecipeEnv({ "HAS SPACE": "x" }, false) === undefined);
+  check("含等號的 key 濾掉", sanitizeRecipeEnv({ "A=B": "x" }, false) === undefined);
+  check("底線開頭合法", sanitizeRecipeEnv({ _OK: "x" }, false)?._OK === "x");
+
+  // Helm 自己的變數不可被覆寫 —— 這是 hook 路由的正確性，不是偏好問題
+  for (const key of RESERVED_ENV_KEYS) {
+    check(`保留 key ${key} 濾掉`, sanitizeRecipeEnv({ [key]: "x" }, false) === undefined);
+  }
+  check(
+    "Windows：小寫拼法的保留 key 也擋（環境變數不分大小寫）",
+    sanitizeRecipeEnv({ helm_session_id: "x" }, true) === undefined,
+  );
+  check(
+    "非 Windows：小寫拼法是另一個變數，放行",
+    sanitizeRecipeEnv({ helm_session_id: "x" }, false)?.helm_session_id === "x",
+  );
+  check(
+    "保留 key 只濾掉自己，同物件其他項留下",
+    JSON.stringify(sanitizeRecipeEnv({ TERM: "dumb", KEEP: "1" }, false)) ===
+      JSON.stringify({ KEEP: "1" }),
+  );
+}
+
+{
+  console.log("\nisValidEnvKey / isReservedEnvKey:");
+  check("PATH 合法", isValidEnvKey("PATH"));
+  check("空字串不合法", !isValidEnvKey(""));
+  check("TERM 是保留字", isReservedEnvKey("TERM", false));
+  check("ANTHROPIC_API_KEY 不是保留字", !isReservedEnvKey("ANTHROPIC_API_KEY", false));
+}
+
+{
+  console.log("\nnormalizeRecipe:");
+  check("null → undefined", normalizeRecipe(null, false) === undefined);
+  check("陣列 → undefined", normalizeRecipe([], false) === undefined);
+  check("空物件 → undefined", normalizeRecipe({}, false) === undefined);
+  check(
+    "只有空白的 command → undefined（不算設定過）",
+    normalizeRecipe({ command: "   " }, false) === undefined,
+  );
+  check("command 保留原樣", normalizeRecipe({ command: "claude" }, false)?.command === "claude");
+  check(
+    "env 全被濾掉且無 command → undefined",
+    normalizeRecipe({ env: { TERM: "dumb" } }, false) === undefined,
+  );
+  check(
+    "env 全被濾掉但有 command → 不留空的 env 欄位",
+    !("env" in (normalizeRecipe({ env: { TERM: "dumb" }, command: "claude" }, false) ?? {})),
+  );
+  const both = normalizeRecipe({ env: { A: "1" }, command: "claude" }, false);
+  check("env + command 都在", both?.command === "claude" && both?.env?.A === "1");
+  check(
+    "env 非物件時忽略",
+    normalizeRecipe({ env: "nope", command: "x" }, false)?.env === undefined,
+  );
+}
+
+{
+  console.log("\nnormalizeWorkspaces + recipe:");
+  const out = normalizeWorkspaces(
+    [{ id: DEFAULT_WORKSPACE_ID, name: "D", collapsed: false, recipe: { command: "claude" } }],
+    false,
+  );
+  check("recipe 一起還原", out[0].recipe?.command === "claude");
+
+  const stripped = normalizeWorkspaces(
+    [
+      {
+        id: DEFAULT_WORKSPACE_ID,
+        name: "D",
+        collapsed: false,
+        recipe: { env: { HELM_SESSION_ID: "hijack" } },
+      },
+    ],
+    false,
+  );
+  check(
+    "手改 localStorage 塞進保留 key，載入時就被濾掉",
+    stripped[0].recipe === undefined && !("recipe" in stripped[0]),
+  );
+
+  const noRecipe = normalizeWorkspaces(
+    [{ id: DEFAULT_WORKSPACE_ID, name: "D", collapsed: false }],
+    false,
+  );
+  check("沒有 recipe 時不生出 recipe 欄位", !("recipe" in noRecipe[0]));
+
+  const badRecipe = normalizeWorkspaces(
+    [{ id: DEFAULT_WORKSPACE_ID, name: "D", collapsed: false, recipe: "nope" }],
+    false,
+  );
+  check("壞掉的 recipe 不連累整個 workspace 被丟掉", badRecipe.length === 1);
 }
 
 console.log(`\nworkspace-groups: ${passed} checks passed`);

@@ -67,11 +67,37 @@ function folderForWorkspace(id: string): string | undefined {
   return useWorkspaceStore.getState().workspaces.find((w) => w.id === id)?.folder || undefined;
 }
 
+/**
+ * A workspace's startup recipe, snapshotted for a new session.
+ *
+ * `withCommand` splits the two halves deliberately. Env is environment: it is
+ * inert until something in the session uses it, so every path that starts a
+ * PTY gets it. The command is an *action* — it executes on the user's machine —
+ * so it is limited to paths where the user explicitly asked for a new session.
+ * Opening a folder (`helm .`, Explorer) and restoring a snapshot both start
+ * sessions the user did not individually request, and silently running a
+ * command there is the failure mode `lastLaunchCommand` already exists to
+ * prevent (see sessionSnapshotSchema.ts).
+ */
+function startupForWorkspace(
+  id: string,
+  withCommand: boolean,
+): { env?: Record<string, string>; command?: string } | undefined {
+  const recipe = useWorkspaceStore.getState().workspaces.find((w) => w.id === id)?.recipe;
+  if (!recipe) return undefined;
+  return withCommand ? { env: recipe.env, command: recipe.command } : { env: recipe.env };
+}
+
 /** Create an ungrouped session (optionally from a launcher) and focus its terminal. */
 export function newSession(launcher?: AgentLauncher, workspaceId?: string): void {
   const store = useSessionStore.getState();
   const targetWs = workspaceId ?? resolveFocusedWorkspace(store.sessions, store.activeId);
-  store.createSession(launcher, targetWs, folderForWorkspace(targetWs));
+  store.createSession(
+    launcher,
+    targetWs,
+    folderForWorkspace(targetWs),
+    startupForWorkspace(targetWs, true),
+  );
   // A new session must be visible, and the collapse state now survives a
   // restart — so bootstrap can land in a workspace the user left collapsed.
   expandWorkspace(targetWs);
@@ -106,7 +132,11 @@ export function openFolderSession(folder: string): string {
   // Deliberately not newSession(): that reads the folder back through
   // folderForWorkspace, which would miss a workspace created microseconds ago
   // if the store write had not settled. Pass the folder we already have.
-  useSessionStore.getState().createSession(undefined, targetWs, folder);
+  // Env only, no recipe command — double-clicking a folder in Explorer must not
+  // execute anything (see startupForWorkspace).
+  useSessionStore
+    .getState()
+    .createSession(undefined, targetWs, folder, startupForWorkspace(targetWs, false));
   expandWorkspace(targetWs);
   requestAnimationFrame(() => focusActiveTerminal());
   return targetWs;

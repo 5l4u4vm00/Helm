@@ -131,6 +131,64 @@ function roundTrip(snap: SessionSnapshot): SessionSnapshot | null {
   check("重啟：agent 身分保留", r.sessions[0].agentId === "claude-code");
 }
 
+// ------------------------------------------------------------- recipe env
+// env 與 launchCommand 的不對稱是本檔案分界的具體案例：env 是被動的環境，
+// 還原時必須原樣帶回（否則新 PTY 跑在不同環境）；command 會自己執行，所以
+// 只存成 lastLaunchCommand、不寫回。
+{
+  const before = projectSnapshot({
+    sessions: [
+      sess("s1", {
+        cwd: "/repo",
+        env: { NODE_ENV: "development", ANTHROPIC_API_KEY: "sk-test" },
+        launchCommand: "claude",
+      }),
+    ],
+    trees: {},
+    activeId: "s1",
+    savedAt: 0,
+  });
+  const back = roundTrip(before);
+  const restored = back?.sessions[0];
+  check("env 寫進快照並完整讀回", restored?.env?.NODE_ENV === "development");
+  check("env 的每一項都在", restored?.env?.ANTHROPIC_API_KEY === "sk-test");
+  check(
+    "env 存在快照，launchCommand 則變成 lastLaunchCommand（不會被寫回去自動執行）",
+    restored?.lastLaunchCommand === "claude" && !("launchCommand" in (restored ?? {})),
+  );
+
+  // 空 env 不該在檔案裡留下 `"env": {}` —— 讀回來會變成「設定過但沒東西」。
+  const empty = projectSnapshot({
+    sessions: [sess("s2", { env: {} })],
+    trees: {},
+    activeId: "s2",
+    savedAt: 0,
+  });
+  check("空 env 不寫進快照", !("env" in (empty.sessions[0] as Record<string, unknown>)));
+
+  // 壞掉的 env 只損失那一項，不該讓整個 pane（連同 cwd / 標題 / agent 身分）消失。
+  const dirty = normalizeSnapshot({
+    version: before.version,
+    savedAt: 0,
+    activeId: "s1",
+    sessions: [
+      {
+        id: "s1",
+        title: "S",
+        status: "idle",
+        createdAt: 1,
+        workspaceId: "default",
+        agentId: null,
+        env: { GOOD: "1", BAD: 5 },
+      },
+    ],
+    groups: [],
+  });
+  check("env 有壞項時 session 仍然保住", dirty?.sessions.length === 1);
+  check("壞掉的 env 項被丟掉，好的留下", dirty?.sessions[0].env?.GOOD === "1");
+  check("非字串的 env 值不會混進來", dirty?.sessions[0].env?.BAD === undefined);
+}
+
 // ------------------------------------------------- 丟棄非持久化欄位 / node id
 {
   // 刻意用 as 塞進執行期欄位：投影是「逐欄挑選」而非 spread，所以應該一個都不留。
@@ -543,6 +601,22 @@ function roundTrip(snap: SessionSnapshot): SessionSnapshot | null {
   check("欄位相同 → equal", snapshotFieldsEqual(a, b));
   check("title 不同 → not equal", !snapshotFieldsEqual(a, { ...b, title: "other" }));
   check("cwd 不同 → not equal", !snapshotFieldsEqual(a, { ...b, cwd: "/y" }));
+  check(
+    "env 內容相同但物件 identity 不同 → equal（比內容，不比參考）",
+    snapshotFieldsEqual({ ...a, env: { A: "1" } }, { ...b, env: { A: "1" } }),
+  );
+  check(
+    "env 值不同 → not equal",
+    !snapshotFieldsEqual({ ...a, env: { A: "1" } }, { ...b, env: { A: "2" } }),
+  );
+  check(
+    "env 多一個 key → not equal",
+    !snapshotFieldsEqual({ ...a, env: { A: "1" } }, { ...b, env: { A: "1", B: "2" } }),
+  );
+  check(
+    "env undefined 與空物件等值（都代表沒有額外變數）",
+    snapshotFieldsEqual({ ...a, env: undefined }, { ...b, env: {} }),
+  );
   check(
     "titleLocked undefined 與 false 等值",
     snapshotFieldsEqual({ ...a, titleLocked: undefined }, { ...b, titleLocked: false }),

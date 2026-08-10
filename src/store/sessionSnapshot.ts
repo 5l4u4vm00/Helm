@@ -94,6 +94,9 @@ function toSession(s: SnapshotSession): Session {
     createdAt: s.createdAt,
     workspaceId: s.workspaceId,
     cwd: s.cwd,
+    // env 直接寫回（不同於 launchCommand）：環境變數是被動的，重建 PTY 時本來
+    // 就該和原本一樣，寫回去不會自己執行任何東西。
+    env: s.env,
     titleLocked: s.titleLocked,
     agentId: s.agentId,
     agentLabel: s.agentLabel,

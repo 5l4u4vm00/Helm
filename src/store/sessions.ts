@@ -35,6 +35,9 @@ export interface Session {
   createdAt: number;
   workspaceId: string; // 側欄分組（純視覺，不影響 PTY）
   cwd?: string; // PTY 啟動目錄（建立時由 workspace 資料夾快照，之後不變）
+  // PTY 額外環境變數（建立時由 workspace recipe 快照，之後不變 —— 同 cwd）。
+  // 改 recipe 不影響已在跑的 session：環境變數只在 spawn 當下有意義。
+  env?: Record<string, string>;
   // 使用者明確改過名：此後 OSC 0/2 標題不再覆寫 title（見 sessionTitle.ts）。
   titleLocked?: boolean;
   // ---- agent 相關 ----
@@ -71,7 +74,15 @@ interface SessionState {
   // 方案速率限制剩餘（Claude Code Pro/Max，來自 statusline rate_limits）。
   // 帳號級、跨 session 同一份，故存全 app 最新值而非掛在個別 session 上。
   accountPlanUsage?: PlanUsage;
-  createSession: (launcher?: AgentLauncher, workspaceId?: string, cwd?: string) => string;
+  /** `startup` carries what the workspace recipe contributes (env, and the
+   *  fallback command used only when no launcher was chosen). Grouped rather
+   *  than appended as more positional params — callers already pass three. */
+  createSession: (
+    launcher?: AgentLauncher,
+    workspaceId?: string,
+    cwd?: string,
+    startup?: { env?: Record<string, string>; command?: string },
+  ) => string;
   closeSession: (id: string) => void;
   moveSessionToWorkspace: (sessionId: string, workspaceId: string) => void;
   setActive: (id: string) => void;
@@ -174,7 +185,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   sessions: [],
   activeId: null,
 
-  createSession: (launcher, workspaceId, cwd) => {
+  createSession: (launcher, workspaceId, cwd, startup) => {
     const id = crypto.randomUUID();
     const profileId = launcher?.profileId ?? null;
     const { sessions, activeId } = get();
@@ -187,9 +198,13 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       createdAt: Date.now(),
       workspaceId: workspaceId ?? resolveFocusedWorkspace(sessions, activeId),
       cwd,
+      env: startup?.env,
       agentId: profileId,
       agentLabel: profileId ? getProfile(profileId).label : undefined,
-      launchCommand: launcher?.command || undefined,
+      // Launcher 優先，recipe command 讓位：使用者從選單挑了具體 agent，那是比
+      // workspace 預設更明確的意圖。recipe command 只在「純新建、未選 launcher」
+      // 時生效。env 不受此影響，兩種情況都套用。
+      launchCommand: launcher?.command || startup?.command || undefined,
     };
     set((s) => ({ sessions: [...s.sessions, session], activeId: id }));
     return id;
