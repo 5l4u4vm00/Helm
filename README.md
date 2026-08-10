@@ -73,6 +73,8 @@ delete `~/Library/Application Support/com.arieschao.helm` — which is where you
 
 Download the installer for your platform from the
 [GitHub Releases page](https://github.com/YIHSUAN603/Helm/releases). If you
+use Windows, choose the NSIS setup `.exe`; it installs the Explorer **Open with
+Helm** menu (on Windows 11 it may appear under **Show more options**). If you
 install the macOS `.dmg` yourself, clear the quarantine flag before first
 launch: `xattr -cr /Applications/Helm.app`.
 

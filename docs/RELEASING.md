@@ -1,8 +1,13 @@
 # Releasing
 
 Releases are built by `.github/workflows/release.yml`: pushing a `v*` tag
-packages the app for Windows (.msi/.exe), macOS (.dmg, arm64 + x64), and
+packages the app for Windows (NSIS `.exe`), macOS (.dmg, arm64 + x64), and
 Linux (.deb/.AppImage/.rpm), and publishes them as a **draft** GitHub Release.
+
+Windows intentionally publishes only the NSIS installer. The Explorer "Open
+with Helm" entries are installed and removed by
+`src-tauri/nsis/shell-integration.nsh`; an MSI build does not run those hooks
+and must not be offered as an equivalent download.
 
 ## Checklist
 

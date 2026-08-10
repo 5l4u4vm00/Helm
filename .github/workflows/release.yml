@@ -22,7 +22,11 @@ jobs:
           - platform: ubuntu-22.04
             args: ''
           - platform: windows-latest
-            args: ''
+            # Explorer integration is installed by the NSIS hook in
+            # src-tauri/nsis/shell-integration.nsh. An MSI cannot run that
+            # hook, so publishing both formats gave users an installer that
+            # silently omitted "Open with Helm".
+            args: '--bundles nsis'
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v5
