@@ -48,6 +48,10 @@ const SCAN_DEBOUNCE_HIDDEN_MS = 1000;
 // below). Long enough to outlast the macOS window zoom / full-screen animation.
 const FIT_SETTLE_MS = 250;
 
+// 重播前最多等 pane 拿到寬度多久。隱藏的 pane（display:none）永遠等不到，逾時
+// 讓它照常 spawn PTY —— 只是那次重播用當下寬度，與修正前相同。
+const REPLAY_WIDTH_WAIT_MS = 2000;
+
 interface TerminalProps {
   id: string;
   /** 是否為目前 focus 的 pane（邊框高亮 + 自動聚焦輸入）。 */
@@ -222,7 +226,14 @@ function TerminalImpl({
     const searchAddonInstance = new SearchAddon();
     term.loadAddon(searchAddonInstance);
     setSearchAddon(searchAddonInstance);
-    fitAddon.fit();
+    // 只在 pane 真的有尺寸時 fit。還原時只有 active 的 pane 在版面內，其餘是
+    // data-in-layout="false"（display:none）→ 容器 0×0，此時 fit() 會把格子夾成
+    // 9×5 之類的最小值；接著重播的裸 write 就以那個寬度把斷行永久烙進 buffer。
+    // 0 尺寸時保留 xterm 預設的 80×24，等 ResizeObserver（同樣有 0 尺寸防護）
+    // 在 pane 顯示出來時再 fit。
+    if (container.clientWidth > 0 && container.clientHeight > 0) {
+      fitAddon.fit();
+    }
     termRef.current = term;
     fitRef.current = fitAddon;
     registerScrollbackSource(id, () => readNormalBuffer(term));
@@ -317,6 +328,34 @@ function TerminalImpl({
       repaintAfterFontChange(term, fitAddon);
     });
 
+    /**
+     * 等到 container 真的有尺寸（並 fit 一次）再往下走，最多等
+     * REPLAY_WIDTH_WAIT_MS。
+     *
+     * 隱藏的 pane（display:none）永遠等不到尺寸，所以**必須**有逾時：還原時除了
+     * active 之外的 pane 都是這種，無限等下去等於它們永遠不 spawn PTY。逾時的
+     * 代價只是那一次重播用當下的寬度，與修正前相同，不會更糟。
+     *
+     * 刻意**不**等字型載入的 promise：那條鏈接著 repaintAfterFontChange，它在
+     * renderer 出事時會丟例外，把 spawn 一起拖住（症狀：整個 pane 不 spawn）。
+     * 寬度只看 container，跟字型無關。
+     */
+    const waitForWidth = async (): Promise<void> => {
+      const deadline = Date.now() + REPLAY_WIDTH_WAIT_MS;
+      while (!disposed && container.clientWidth === 0 && Date.now() < deadline) {
+        await new Promise<void>((resolve) => setTimeout(resolve, 32));
+      }
+      if (disposed) return;
+      // 有尺寸才 fit：0 尺寸下 fit() 正是把格子夾成最小值的那一步。
+      if (container.clientWidth > 0) {
+        try {
+          fitAddon.fit();
+        } catch {
+          /* ignore */
+        }
+      }
+    };
+
     const effectiveShell = shell ?? (settings.defaultShell || undefined);
     const effectiveCwd = cwd ?? (settings.defaultCwd || undefined);
     // Only *report* spawn failures under Tauri: in browser-only `npm run dev`
@@ -367,6 +406,17 @@ function TerminalImpl({
         term.write("\r\n\x1b[2m[process exited]\x1b[0m\r\n");
         cbRef.current.onExit?.();
       }).catch(() => undefined);
+      if (disposed) return;
+
+      // 重播前必須先等 pane 真的有尺寸。還原時只有 active session 的 pane 在版面
+      // 內，其餘是 data-in-layout="false"（display:none）→ 容器 0×0，而 open() 之
+      // 後那次 fitAddon.fit() 沒有 ResizeObserver 的 0 尺寸防護（見下方
+      // `container.clientWidth === 0` 那道），會把格子夾成 9×5 之類的最小值。
+      // buildReplayText 對每一行都寫死 \r\n，被這個寬度折出來的斷行會**永久烙進
+      // buffer**，之後 pane 顯示出來再 fit 也救不回（症狀：切過去看到歷史被折成
+      // 極窄一條、游標黏在最上方）。存邏輯行讓新寬度重新決定怎麼折的設計（見
+      // replay.ts 的 joinLogicalLines）只有在寬度已定時才成立。
+      await waitForWidth();
       if (disposed) return;
 
       // 還原：重播上次的畫面並取得 scan floor。必須在 spawnPty 之前 —— term.write
