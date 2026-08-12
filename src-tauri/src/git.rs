@@ -194,9 +194,7 @@ fn resolve_abs(base_dir: Option<&str>, path: &str) -> Option<PathBuf> {
     // verbatim `\\?\C:\...` form, while `git rev-parse --show-toplevel` returns
     // a plain `C:/...`. to_repo_relative's strip_prefix compares the two, so
     // leaving the prefix on makes *every* lookup report not_a_repo.
-    Some(crate::launch::strip_unc(
-        abs.canonicalize().unwrap_or(abs),
-    ))
+    Some(crate::launch::strip_unc(abs.canonicalize().unwrap_or(abs)))
 }
 
 /// First existing ancestor of `path` — the directory to anchor git at when the
