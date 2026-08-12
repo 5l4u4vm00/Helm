@@ -17,6 +17,7 @@ import {
 import { focusActiveTerminal } from "../../focus/focusUtils";
 import { handleListKey, hasNonShiftModifier } from "../../focus/listNav";
 import { pickFolder } from "../../ipc/dialog";
+import { displayFolderPath } from "../../store/launchFolder";
 import { SessionItem, SIDEBAR_NAV_SELECTOR } from "./SessionItem";
 import { useT } from "../../i18n";
 import { resolveSidebarShortcut } from "./sidebarKeymap";
@@ -327,7 +328,9 @@ export const WorkspaceGroup = memo(function WorkspaceGroup({
           title={folderMissing ? `${w.folder}\n${t("sidebar.folderMissing")}` : w.folder}
         >
           <span className="workspace-folder-icon">📁</span>
-          <span className="workspace-folder-path">{w.folder}</span>
+          {/* Head-clipped (see displayFolderPath): the folder name matters more
+              than the drive it lives on. Full path stays in the title above. */}
+          <span className="workspace-folder-path">{displayFolderPath(w.folder)}</span>
           <button
             className="icon-btn hover-action"
             title={t("sidebar.clearFolder")}

@@ -174,13 +174,19 @@
   opacity: 0.7;
 }
 
+/* Long paths are truncated from the *left* so the trailing segment (the folder
+   name — the part that identifies the workspace) stays readable.
+
+   Deliberately NOT `direction: rtl`: that flips the base paragraph direction,
+   so the bidi algorithm reorders the path's LTR runs and puts the ellipsis on
+   the wrong side. A Windows path (`C:\Users\...\Helm`) comes out visually
+   rearranged and jammed against the left edge. Scrolling the overflow to the
+   right keeps a pure-LTR layout and clips the head instead. */
 .workspace-folder-path {
   flex: 1 1 auto;
   min-width: 0;
   white-space: nowrap;
   overflow: hidden;
-  text-overflow: ellipsis;
-  direction: rtl; /* keep the trailing path segment (the folder name) visible */
   text-align: left;
 }
 

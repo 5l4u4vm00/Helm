@@ -61,3 +61,43 @@ export function workspaceNameForFolder(folder: string): string {
   const last = parts[parts.length - 1];
   return last ?? folder;
 }
+
+/**
+ * Sidebar display form of a folder path: clipped from the **head** so the
+ * trailing segments (the folder name — the part that says which project this
+ * is) survive. `C:\Users\me\src\deep\nest\helm` → `…\deep\nest\helm`.
+ *
+ * Why this is not CSS: `text-overflow: ellipsis` only ever trims the tail, and
+ * the usual trick for flipping it — `direction: rtl` — changes the base
+ * paragraph direction, so the bidi algorithm reorders the path's LTR runs and
+ * drops the ellipsis on the wrong side. Windows paths come out visually
+ * scrambled and shoved against the left edge, which is exactly the bug this
+ * replaces. Clipping in JS keeps the string pure LTR.
+ *
+ * `max` is a character budget, not a pixel measurement: the sidebar is a fixed
+ * 220px and this line renders at 10px, so a fixed budget is stable and needs no
+ * layout read.
+ *
+ * Keep the default **conservative**. Overshooting is the one failure that
+ * matters here: CSS then clips the tail, which throws away the folder name —
+ * precisely what head-clipping exists to protect. Undershooting only leaves a
+ * little width unused. ~30 chars is what reliably fits the sidebar row at 10px;
+ * the diff header passes a larger budget because it is far wider.
+ *
+ * Separators are preserved as written — a Windows path keeps its backslashes —
+ * because this string is also what the user copies out of the tooltip.
+ */
+export function displayFolderPath(folder: string, max = 30): string {
+  if (max <= 1 || folder.length <= max) return folder;
+  // Take the budget's worth of tail, then start at its *first* separator so the
+  // result begins on a segment boundary instead of mid-name. First (not last)
+  // is what keeps the most segments that still fit.
+  //
+  // Consequence worth knowing: the output can be well under `max` when a
+  // separator sits just inside the window, so the budget is an upper bound
+  // rather than a target. Widening it a little buys a whole extra segment.
+  const tail = folder.slice(folder.length - (max - 1));
+  const sep = tail.search(/[/\\]/);
+  // No separator inside the window: one enormous segment, so hard-cut it.
+  return sep >= 0 ? `…${tail.slice(sep)}` : `…${tail}`;
+}

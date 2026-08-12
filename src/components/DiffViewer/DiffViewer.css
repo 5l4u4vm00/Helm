@@ -46,7 +46,8 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  direction: rtl; /* keep the file name visible when the path is long */
+  /* Head clipping is done in JS (displayFolderPath) — `direction: rtl` would
+     reorder the path's LTR runs and put the ellipsis on the wrong side. */
   text-align: left;
   font-family: "SF Mono", Menlo, monospace;
   color: var(--fg);
