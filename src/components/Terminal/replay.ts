@@ -111,7 +111,11 @@ export function capTail(
 export function buildSnapshotLines(rows: readonly SnapshotRow[], skip = 0): string[] {
   const start = Math.min(Math.max(0, Math.floor(skip)), rows.length);
   const joined = joinLogicalLines(rows.slice(start));
-  return capTail(trimTrailingBlank(joined.map(sanitizeLine)));
+  const lines = capTail(trimTrailingBlank(joined.map(sanitizeLine)));
+  // 第二道防線（floor 是行號、會因折行/淘汰而失準）：真的漏了框線就整份不寫。
+  // 回空陣列 = persistPane 什麼都不做、**尤其不刪檔**，所以最壞情況只是這一輪
+  // 沿用舊快照，而不是把髒內容固化下來讓它一層層疊。
+  return hasReplayBanner(lines) ? [] : lines;
 }
 
 export function serializeSnapshot(lines: readonly string[], savedAt: number): string {
@@ -119,7 +123,55 @@ export function serializeSnapshot(lines: readonly string[], savedAt: number): st
   return `${MAGIC} ${SNAPSHOT_VERSION} ${stamp}\n${lines.join("\n")}\n`;
 }
 
-/** 解析檔案內容；檔頭不對、版本不認、沒有內容 → null（整份丟棄）。 */
+/**
+ * 重播框線的識別特徵。
+ *
+ * 刻意**比對 Helm 自己的框線文字**，而不是「以 ── 開頭結尾」這種形狀規則：
+ * 形狀規則同時會誤殺一般輸出（`──────────` 分隔線、`─── Coverage summary ───`
+ * 這類第三方標題），而誤殺的代價是把使用者真正的歷史整份丟掉。
+ *
+ * 只收錄各語言的**不變片段**（不含 `{label}` 之類的插值與 footer 後面接的
+ * 「多久以前」），所以框線被折行、後面被接上東西都仍然認得出來。新增語言時
+ * 要一併補進來 —— 漏掉只會讓自癒失效，不會誤殺。
+ */
+const REPLAY_BANNER_MARKS = [
+  // en
+  "history from your last session",
+  "static record above",
+  "to resume",
+  // zh-TW
+  "上次啟動的畫面",
+  "以上為靜態記錄",
+  "接續",
+] as const;
+
+/**
+ * 這一份快照裡是否混進了 Helm 自己的重播框線。
+ *
+ * 出現這種檔案代表某一輪的 scan floor 沒有蓋住整個重播區塊（歷史成因：pane 在
+ * 被摺疊/隱藏的極窄寬度下重播，框線被折成兩三個物理列，floor 只算到其中一部分
+ * ——`waitForWidth` 之後不再產生，但**已經寫壞的檔案還在磁碟上**）。
+ *
+ * 這種檔案不能照常重播：每次啟動都會把上一輪的框線連同殘缺的尾巴再存一遍，
+ * 一層層疊上去，而且畫面上會出現半截的 header（例如 `ssion ──`）。
+ *
+ * 刻意整份丟棄而不是「濾掉框線那幾列」：框線之間夾的本來就是更早那一輪的重播
+ * 內容，逐列濾除只會留下一堆錯位的殘骸；而 scrollback 是可重生的便利資料，丟掉
+ * 最多損失一次歷史，下一個 poll 週期就會以乾淨的內容重寫。
+ */
+export function hasReplayBanner(lines: readonly string[]): boolean {
+  return lines.some((line) => {
+    // 框線一定同時有 ── 和其中一段固定文字。兩個條件都要，一般輸出才不會因為
+    // 剛好提到 "to resume" 之類的字就被丟掉。
+    if (!line.includes("──")) return false;
+    return REPLAY_BANNER_MARKS.some((mark) => line.includes(mark));
+  });
+}
+
+/**
+ * 解析檔案內容；檔頭不對、版本不認、沒有內容、**或含有重播框線** → null
+ * （整份丟棄，見 hasReplayBanner）。
+ */
 export function parseSnapshot(text: string): ScrollbackSnapshot | null {
   if (!text) return null;
   const nl = text.indexOf("\n");
@@ -137,6 +189,9 @@ export function parseSnapshot(text: string): ScrollbackSnapshot | null {
   // 讀進來的檔案也套上限與消毒：手動編輯或損壞的檔案不該變成一大坨重播。
   const lines = capTail(trimTrailingBlank(raw.map(sanitizeLine)));
   if (lines.length === 0) return null;
+  // 自癒：舊版寫壞的檔案（含自己的重播框線）在這裡被擋下，於是下一個 poll
+  // 週期就會用當下的乾淨畫面覆蓋掉它，不必手動刪檔。
+  if (hasReplayBanner(lines)) return null;
   return { version, savedAt, lines };
 }
 

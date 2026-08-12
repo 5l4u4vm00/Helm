@@ -5,6 +5,8 @@ import assert from "node:assert";
 import {
   buildReplayText,
   buildSnapshotLines,
+  hasReplayBanner,
+  parseSnapshot,
   capTail,
   joinLogicalLines,
   MAX_SNAPSHOT_CHARS,
@@ -113,6 +115,61 @@ check(
   JSON.stringify(buildSnapshotLines([row("head"), wrap("tail")], 1)) === '["tail"]',
 );
 check("負的 skip 當成 0", JSON.stringify(buildSnapshotLines([row("a")], -5)) === '["a"]');
+
+// ---- 重播框線污染的自癒（floor 漏掉框線時的第二道防線） ----
+//
+// 真實案例（使用者的 com.arieschao.helm/scrollback-*.txt）：pane 在被摺疊的
+// 極窄寬度（實測 14 或 28 欄）下重播，36 字的 header 被折成 2～3 個物理列，
+// floor 只算到其中一部分，於是殘缺的尾巴 `ssion ──` 連同 footer / resumeHint
+// 一起被存回檔案，每次重開再疊一層。
+
+check("認得出 header 框線（en）", hasReplayBanner(["── history from your last session ──"]));
+check("認得出 header 框線（zh-TW）", hasReplayBanner(["── 上次啟動的畫面 ──"]));
+check("認得出 footer 框線（zh-TW）", hasReplayBanner(["── 以上為靜態記錄，shell 是新開的 ──"]));
+check("認得出 resume 提示框線", hasReplayBanner(["── press Ctrl+A R to resume Claude Code ──"]));
+// footer 後面會被 footerWithAge 接上「多久以前」，所以不能用行尾錨點比對。
+check(
+  "footer 後面接了「多久以前」仍認得",
+  hasReplayBanner(["── static record above; the shell below is new ── (yesterday)"]),
+);
+
+// 誤殺一般輸出的代價是「把使用者真正的歷史整份丟掉」，比漏抓嚴重得多，
+// 所以判定要同時滿足「有 ──」與「含 Helm 自己的框線文字」兩個條件。
+check("純分隔線不算（很多 CLI 都會印）", !hasReplayBanner(["──────────"]));
+check("第三方標題不算", !hasReplayBanner(["─── Coverage summary ───"]));
+check("框線形狀的第三方輸出不算", !hasReplayBanner(["── build finished ──"]));
+check("有關鍵字但沒有 ── 不算", !hasReplayBanner(["Press enter to resume the download"]));
+check("一般輸出不會被誤判", !hasReplayBanner(["PS C:\\Users\\USER> npm test", "ok - 1"]));
+// 折斷的殘骸單看不算 —— 不影響自癒：同一份檔案裡完整的 footer/resumeHint
+// 一定會被認出來，整份丟棄後殘骸也跟著沒了。
+check("折斷的殘骸單看不算（避免誤殺一般輸出）", !hasReplayBanner(["ssion ──"]));
+check("空清單不算", !hasReplayBanner([]));
+
+// 寫入路徑：漏網的框線 → 整份不寫（回空陣列，persistPane 據此不動檔案）
+check(
+  "buildSnapshotLines 偵測到框線就整份不寫",
+  buildSnapshotLines([row("── 上次啟動的畫面 ──"), row("PS C:\\x>")]).length === 0,
+);
+
+// 讀取路徑：舊版寫壞的檔案 → 整份丟棄，下個 poll 週期自動以乾淨畫面覆蓋
+{
+  const dirty =
+    "helm-scrollback 1 1786516126380\n" +
+    "ssion ──\n" +
+    "PS C:\\Users\\USER\\Desktop\\richi\\Helm> \n" +
+    "── static record above; the shell below is new ── (yesterday)\n" +
+    "── press Ctrl+A R to resume Claude Code ──\n" +
+    "PS C:\\Users\\USER\\Desktop\\richi\\Helm> \n";
+  check("含重播框線的舊檔整份丟棄（自癒）", parseSnapshot(dirty) === null);
+
+  const clean =
+    "helm-scrollback 1 1786516126380\nPS C:\\x> npm test\nok - 1\n";
+  const parsed = parseSnapshot(clean);
+  check("乾淨的檔案照常解析", parsed !== null && parsed.lines.length === 2);
+  check("解析保留 savedAt", parsed?.savedAt === 1786516126380);
+  check("檔頭不對 → null", parseSnapshot("not-helm 1 0\nx\n") === null);
+  check("版本不認 → null", parseSnapshot("helm-scrollback 99 0\nx\n") === null);
+}
 
 // ---- 重播框線 ----
 
