@@ -189,7 +189,14 @@ fn resolve_abs(base_dir: Option<&str>, path: &str) -> Option<PathBuf> {
     };
     // Canonicalize when it exists, so a symlinked worktree anchors the real
     // repository; a deleted file keeps its literal path.
-    Some(abs.canonicalize().unwrap_or(abs))
+    //
+    // strip_unc is not cosmetic here: on Windows canonicalize returns the
+    // verbatim `\\?\C:\...` form, while `git rev-parse --show-toplevel` returns
+    // a plain `C:/...`. to_repo_relative's strip_prefix compares the two, so
+    // leaving the prefix on makes *every* lookup report not_a_repo.
+    Some(crate::launch::strip_unc(
+        abs.canonicalize().unwrap_or(abs),
+    ))
 }
 
 /// First existing ancestor of `path` — the directory to anchor git at when the
@@ -225,7 +232,11 @@ pub async fn git_diff_file(base_dir: Option<String>, path: String) -> Result<Git
     if !root_out.status.success() {
         return Ok(GitDiff::status("not_a_repo", path));
     }
-    let root = PathBuf::from(String::from_utf8_lossy(&root_out.stdout).trim());
+    // Canonicalize git's answer too, so both sides of the strip_prefix below
+    // are in the same spelling: `abs` went through canonicalize, and a
+    // symlinked or 8.3-shortened checkout would otherwise disagree with it.
+    let raw_root = PathBuf::from(String::from_utf8_lossy(&root_out.stdout).trim());
+    let root = crate::launch::strip_unc(raw_root.canonicalize().unwrap_or(raw_root));
     let Some(rel) = to_repo_relative(&root, &abs) else {
         return Ok(GitDiff::status("not_a_repo", path));
     };
@@ -387,6 +398,36 @@ mod tests {
         );
         let patch = synth_untracked_patch("a.png", b"\x89PNG\x00\x01");
         assert_eq!(patch, "Binary files /dev/null and b/a.png differ\n");
+    }
+
+    // Regression: the pure test above hand-writes both paths, so it never sees
+    // what canonicalize actually produces. On Windows that is `\\?\C:\...`,
+    // which strip_prefix could not match against git's plain `C:/...` — every
+    // single diff came back not_a_repo. Goes through the real filesystem on
+    // purpose; that round trip is the thing that was broken.
+    #[test]
+    fn resolve_abs_output_is_comparable_to_a_plain_root() {
+        let dir = std::env::temp_dir().join(format!("helm-git-{}", std::process::id()));
+        std::fs::create_dir_all(dir.join("sub")).unwrap();
+        let file = dir.join("sub").join("a.txt");
+        std::fs::write(&file, b"x\n").unwrap();
+
+        let abs = resolve_abs(Some(&dir.to_string_lossy()), "sub/a.txt").unwrap();
+        assert!(
+            !abs.to_string_lossy().starts_with(r"\\?\"),
+            "verbatim prefix must be stripped, got {abs:?}"
+        );
+
+        // The plain (uncanonicalized) root stands in for `git rev-parse` output.
+        let root = dir.canonicalize().unwrap();
+        let root = crate::launch::strip_unc(root);
+        assert_eq!(
+            to_repo_relative(&root, &abs).as_deref(),
+            Some("sub/a.txt"),
+            "root {root:?} vs abs {abs:?}"
+        );
+
+        std::fs::remove_dir_all(&dir).ok();
     }
 
     #[test]

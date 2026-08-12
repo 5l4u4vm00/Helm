@@ -52,7 +52,10 @@ pub fn resolve_folder(arg: &str, base: &Path) -> Option<PathBuf> {
 /// Windows 的 canonicalize 會回 `\\?\C:\path` 這種 UNC 形式。這個字串會一路
 /// 流到 workspace folder、session cwd 與側欄顯示，其中 workspace 比對是字面
 /// 比對，UNC 前綴會讓同一個資料夾被當成兩個；顯示上也難看。
-fn strip_unc(path: PathBuf) -> PathBuf {
+///
+/// pub(crate)：git.rs 的 resolve_abs 也 canonicalize，而 `git rev-parse` 回的
+/// 是不帶前綴的路徑 —— 兩邊形式不一致會讓 strip_prefix 比對永遠失敗。
+pub(crate) fn strip_unc(path: PathBuf) -> PathBuf {
     let s = path.to_string_lossy();
     match s.strip_prefix(r"\\?\") {
         Some(rest) => PathBuf::from(rest),
