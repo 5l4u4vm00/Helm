@@ -74,15 +74,17 @@ export function workspaceNameForFolder(folder: string): string {
  * scrambled and shoved against the left edge, which is exactly the bug this
  * replaces. Clipping in JS keeps the string pure LTR.
  *
- * `max` is a character budget, not a pixel measurement: the sidebar is a fixed
- * 220px and this line renders at 10px, so a fixed budget is stable and needs no
- * layout read.
+ * `max` is a character budget, not a pixel measurement, so this stays a pure
+ * function with no layout read. The sidebar is resizable, so callers derive the
+ * budget from its current width via `sidebarCharBudget` below rather than
+ * relying on the default.
  *
  * Keep the default **conservative**. Overshooting is the one failure that
  * matters here: CSS then clips the tail, which throws away the folder name —
  * precisely what head-clipping exists to protect. Undershooting only leaves a
- * little width unused. ~30 chars is what reliably fits the sidebar row at 10px;
- * the diff header passes a larger budget because it is far wider.
+ * little width unused. The default ~30 chars is what fits the sidebar row at
+ * 10px at its default width; the diff header passes a larger budget because it
+ * is far wider.
  *
  * Separators are preserved as written — a Windows path keeps its backslashes —
  * because this string is also what the user copies out of the tooltip.
@@ -100,4 +102,53 @@ export function displayFolderPath(folder: string, max = 30): string {
   const sep = tail.search(/[/\\]/);
   // No separator inside the window: one enormous segment, so hard-cut it.
   return sep >= 0 ? `…${tail.slice(sep)}` : `…${tail}`;
+}
+
+/**
+ * Middle-elided display form, for strings whose **both ends** identify them —
+ * a workspace name is often `<project> (<branch>)` or a folder basename with a
+ * qualifying suffix, so tail clipping throws away half the answer.
+ * `Backend Services — staging` → `Backend S…staging`.
+ *
+ * Deliberately not `displayFolderPath`: that one protects the tail because a
+ * path's head is the least informative part. Here neither end is disposable.
+ *
+ * Below 5 the result would be mostly ellipsis, so the raw string is returned
+ * and CSS `text-overflow` takes over — the same "undershooting is the safe
+ * failure" reasoning as above.
+ */
+export function middleEllipsis(text: string, max: number): string {
+  if (max < 5 || text.length <= max) return text;
+  const keep = max - 1;
+  const head = Math.ceil(keep / 2);
+  return `${text.slice(0, head)}…${text.slice(text.length - (keep - head))}`;
+}
+
+/**
+ * Sidebar width (px) → character budget for the two clipped strings in it
+ * (`displayFolderPath`, `middleEllipsis`). Keeps them honest as the user drags
+ * the sidebar: a fixed budget would waste a wide sidebar and overflow a narrow
+ * one.
+ *
+ * Still a character estimate, not a measurement — `perChar` is the average
+ * advance of the 10px sidebar font and `chrome` covers the row's indent, icon
+ * and clear button. Rounding **down** keeps the conservative bias
+ * `displayFolderPath` documents; the floor stops a minimum-width sidebar from
+ * producing a budget so small that everything is ellipsis.
+ */
+export function sidebarCharBudget(widthPx: number, perChar = 5.2, chrome = 44): number {
+  if (!Number.isFinite(widthPx)) return 12;
+  return Math.max(12, Math.floor((widthPx - chrome) / perChar));
+}
+
+/**
+ * Same idea for the workspace **name**, which lives on a busier line: the
+ * chevron, the session count and (sometimes) the approval badge share it, and
+ * it renders at 11px bold rather than 10px. A budget tuned for the folder line
+ * is too generous here — the name then gets CSS-clipped from the tail before
+ * `middleEllipsis` ever trims it, which loses the trailing half that
+ * middle-eliding exists to keep.
+ */
+export function workspaceNameBudget(widthPx: number): number {
+  return sidebarCharBudget(widthPx, 6.4, 72);
 }
