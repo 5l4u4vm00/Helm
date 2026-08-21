@@ -129,6 +129,7 @@ export const en: Record<string, string> = {
   // Sidebar
   "sidebar.newWorkspace": "New workspace",
   "sidebar.hide": "Hide sidebar",
+  "sidebar.resize": "Drag to resize the sidebar (arrow keys to nudge, double-click to reset)",
   "sidebar.settings": "Settings",
   "sidebar.pendingApprovalBadge": "{count} awaiting your input — click to go",
   "sidebar.addSession": "New shell in this workspace",

@@ -1,4 +1,6 @@
 .sidebar {
+  /* Fallback only: SessionSidebar sets the live width inline from
+     settings.sidebarWidth. Keeps the browser-only `npm run dev` path sane. */
   width: 220px;
   flex: 0 0 auto;
   display: flex;
@@ -153,9 +155,12 @@
   opacity: 1;
 }
 
-/* Folder button lights up when this workspace has a default folder set. */
-.workspace-header .icon-btn.on {
+/* Folder / recipe buttons light up when this workspace has one set. Covers the
+   action row as well as the header, or moving them there would kill the tint. */
+.workspace-header .icon-btn.on,
+.workspace-header-actions .icon-btn.on {
   opacity: 1;
+  color: var(--accent);
 }
 
 /* Default-folder line: shown under the header when a folder is set. */
@@ -207,6 +212,24 @@
 
 .workspace-folder:hover .icon-btn.hover-action {
   opacity: 1;
+}
+
+/* Workspace 操作鍵第二行。只在 hover / 鍵盤聚焦時展開，平時完全不佔高度 ——
+   八個元素擠一行時名稱只剩幾個字，這一行把資訊與操作分開。
+
+   觸發掛在 .workspace-group 而不是 .workspace-header：游標移到第二行的按鈕上
+   時已經離開 header，掛 header 會讓按鈕列在滑過去的瞬間消失。 */
+.workspace-header-actions {
+  display: none;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 2px;
+  padding: 0 6px 3px 20px;
+}
+
+.workspace-group:hover > .workspace-header-actions,
+.workspace-group:focus-within > .workspace-header-actions {
+  display: flex;
 }
 
 /* 第二層縮排：session 掛在 workspace 底下 */
@@ -280,6 +303,7 @@
 
 .session-name {
   flex: 1 1 auto;
+  min-width: 0;
   font-size: 12.5px;
   white-space: nowrap;
   overflow: hidden;

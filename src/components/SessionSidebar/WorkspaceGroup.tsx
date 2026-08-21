@@ -1,5 +1,7 @@
-// One collapsible workspace group: header (chevron / name / count / actions)
-// plus its session rows. The whole group is a drop target so a session can
+// One collapsible workspace group: header (chevron / name / count / badge) with
+// its action buttons on a second row, plus its session rows. The actions moved
+// off the header line because eight elements on one 220px row left the name a
+// couple of characters; that row now carries information only. The whole group is a drop target so a session can
 // be dragged in even when the group is collapsed.
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { useSessionStore } from "../../store/sessions";
@@ -17,7 +19,13 @@ import {
 import { focusActiveTerminal } from "../../focus/focusUtils";
 import { handleListKey, hasNonShiftModifier } from "../../focus/listNav";
 import { pickFolder } from "../../ipc/dialog";
-import { displayFolderPath } from "../../store/launchFolder";
+import {
+  displayFolderPath,
+  middleEllipsis,
+  sidebarCharBudget,
+  workspaceNameBudget,
+} from "../../store/launchFolder";
+import { useSettingsStore } from "../../store/settings";
 import { SessionItem, SIDEBAR_NAV_SELECTOR } from "./SessionItem";
 import { useT } from "../../i18n";
 import { resolveSidebarShortcut } from "./sidebarKeymap";
@@ -63,6 +71,11 @@ export const WorkspaceGroup = memo(function WorkspaceGroup({
   useEffect(() => {
     if (w.folder) probeFolder(w.folder);
   }, [w.folder, probeFolder]);
+  // 側欄可調寬，所以裁切預算跟著寬度走，而不是寫死的字元數。名稱與路徑分開
+  // 算：名稱那行還要分給 chevron / 計數 / 徽章，預算比路徑行小。
+  const sidebarWidth = useSettingsStore((s) => s.sidebarWidth);
+  const charBudget = sidebarCharBudget(sidebarWidth);
+  const nameBudget = workspaceNameBudget(sidebarWidth);
   const [dragOver, setDragOver] = useState(false);
   // 所有 waiting 一視同仁：agentState === "waiting" 涵蓋 approval / question /
   // plan（question/plan 沒有 pendingApproval，但同樣需要使用者處理）。
@@ -244,8 +257,11 @@ export const WorkspaceGroup = memo(function WorkspaceGroup({
             onBlur={(e) => commitRename(e.currentTarget.value)}
           />
         ) : (
+          /* Middle-elided (see middleEllipsis): a workspace name identifies
+             itself at both ends, so tail clipping throws away half of it.
+             Full name stays in the tooltip. */
           <span className="workspace-name" title={w.name}>
-            {w.name}
+            {middleEllipsis(w.name, nameBudget)}
           </span>
         )}
         {!confirming && <span className="workspace-count">{sessions.length}</span>}
@@ -264,9 +280,15 @@ export const WorkspaceGroup = memo(function WorkspaceGroup({
             {pendingCount}
           </button>
         )}
-        {!confirming && (
+      </div>
+      {/* Action row. Hidden while confirming or renaming so the header line
+          owns the interaction; the container's `display` alone decides
+          visibility (no `hover-action` opacity on top of it) so there is one
+          mechanism to reason about. */}
+      {!confirming && !renaming && (
+        <div className="workspace-header-actions">
           <button
-            className={`icon-btn hover-action ${w.folder && !folderMissing ? "on" : ""}`}
+            className={`icon-btn ${w.folder && !folderMissing ? "on" : ""}`}
             title={t("sidebar.selectFolder")}
             tabIndex={-1}
             onClick={(e) => {
@@ -277,10 +299,8 @@ export const WorkspaceGroup = memo(function WorkspaceGroup({
           >
             📁
           </button>
-        )}
-        {!confirming && (
           <button
-            className={`icon-btn hover-action ${w.recipe ? "on" : ""}`}
+            className={`icon-btn ${w.recipe ? "on" : ""}`}
             title={t("sidebar.editRecipe")}
             tabIndex={-1}
             onClick={(e) => {
@@ -291,10 +311,8 @@ export const WorkspaceGroup = memo(function WorkspaceGroup({
           >
             ⚙
           </button>
-        )}
-        {!confirming && (
           <button
-            className="icon-btn hover-action"
+            className="icon-btn"
             title={t("sidebar.addSession")}
             tabIndex={-1}
             onClick={(e) => {
@@ -305,22 +323,27 @@ export const WorkspaceGroup = memo(function WorkspaceGroup({
           >
             +
           </button>
-        )}
-        {!confirming && deletable && (
-          <button
-            className="icon-btn hover-action"
-            title={t("sidebar.removeWorkspace")}
-            tabIndex={-1}
-            onClick={(e) => {
-              e.stopPropagation();
-              requestDelete();
-              e.currentTarget.closest<HTMLElement>(".workspace-header")?.focus();
-            }}
-          >
-            ×
-          </button>
-        )}
-      </div>
+          {deletable && (
+            <button
+              className="icon-btn"
+              title={t("sidebar.removeWorkspace")}
+              tabIndex={-1}
+              onClick={(e) => {
+                e.stopPropagation();
+                requestDelete();
+                // The header is no longer this button's ancestor: reach it via
+                // the group so the confirmation still lands on the header row.
+                e.currentTarget
+                  .closest<HTMLElement>(".workspace-group")
+                  ?.querySelector<HTMLElement>(".workspace-header")
+                  ?.focus();
+              }}
+            >
+              ×
+            </button>
+          )}
+        </div>
+      )}
       {w.folder && (
         <div
           className="workspace-folder"
@@ -330,7 +353,9 @@ export const WorkspaceGroup = memo(function WorkspaceGroup({
           <span className="workspace-folder-icon">📁</span>
           {/* Head-clipped (see displayFolderPath): the folder name matters more
               than the drive it lives on. Full path stays in the title above. */}
-          <span className="workspace-folder-path">{displayFolderPath(w.folder)}</span>
+          <span className="workspace-folder-path">
+            {displayFolderPath(w.folder, charBudget)}
+          </span>
           <button
             className="icon-btn hover-action"
             title={t("sidebar.clearFolder")}

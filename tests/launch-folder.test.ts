@@ -7,6 +7,9 @@ import {
   normalizeFolderPath,
   workspaceNameForFolder,
   displayFolderPath,
+  middleEllipsis,
+  sidebarCharBudget,
+  workspaceNameBudget,
 } from "../src/store/launchFolder.ts";
 import type { Workspace } from "../src/store/workspaceGroups.ts";
 
@@ -131,6 +134,61 @@ function ws(id: string, folder?: string): Workspace {
   const def = displayFolderPath(deep);
   check("預設預算保住結尾資料夾名稱", def.endsWith("Helm"));
   check("預設預算不超過上限（超寬會被 CSS 從尾端裁掉）", def.length <= 30);
+}
+
+
+// --- middleEllipsis（workspace 名稱：頭尾都要保住） ---
+{
+  console.log("\nmiddleEllipsis:");
+  check("在預算內原樣輸出", middleEllipsis("Backend", 20) === "Backend");
+  check("剛好等於預算不裁切", middleEllipsis("0123456789", 10) === "0123456789");
+
+  // 核心保證：頭尾都看得見 —— 這正是尾端 ellipsis 會弄丟的一半。
+  const long = "Backend Services staging";
+  const shown = middleEllipsis(long, 16);
+  check("超長會裁切且不超過預算", shown.length <= 16);
+  check("保住開頭", shown.startsWith("B"));
+  check("保住結尾", shown.endsWith("g"));
+  check("中間有省略號", shown.includes("…"));
+
+  // 預算扣掉省略號後對半分，餘數給尾端（結尾通常是分支/環境等識別後綴）。
+  check("奇數預算：尾端多一個字元", middleEllipsis("abcdefghij", 5) === "ab…ij");
+  check("偶數預算", middleEllipsis("abcdefghij", 6) === "abc…ij");
+  check("長度精準等於預算", middleEllipsis("abcdefghij", 7).length === 7);
+
+  // 預算太小時整串幾乎只剩省略號，沒有意義 → 原樣輸出交給 CSS 尾端裁切。
+  check("預算 < 5 原樣輸出", middleEllipsis("abcdefghij", 4) === "abcdefghij");
+  check("空字串安全", middleEllipsis("", 10) === "");
+  check("預算 5 是最小可用值", middleEllipsis("abcdefghij", 5).length === 5);
+}
+
+// --- sidebarCharBudget（側欄寬度 → 字元預算） ---
+{
+  console.log("\nsidebarCharBudget:");
+  // 預設寬度換算出的預算要與原本寫死的 30 同量級，行為才不會突變。
+  const atDefault = sidebarCharBudget(220);
+  check("預設寬度 220px 的預算接近原本的 30", atDefault >= 28 && atDefault <= 38);
+
+  check("越寬預算越大", sidebarCharBudget(480) > sidebarCharBudget(220));
+  check("越窄預算越小", sidebarCharBudget(180) < sidebarCharBudget(220));
+
+  // 下限：最窄的側欄也不能讓預算小到整串都是省略號。
+  check("極窄寬度仍有下限", sidebarCharBudget(0) >= 12);
+  check("負寬度仍有下限", sidebarCharBudget(-100) >= 12);
+  check("NaN 回下限（不能把 NaN 傳進裁切邏輯）", sidebarCharBudget(NaN) === 12);
+  check("輸出為整數", Number.isInteger(sidebarCharBudget(333)));
+
+  // 名稱那行還要分給 chevron / 計數 / 徽章，預算必須比路徑行更緊 ——
+  // 太鬆的話 CSS 會先從尾端裁掉，等於丟了 middleEllipsis 要保的後半段。
+  check("名稱預算比路徑預算緊", workspaceNameBudget(220) < sidebarCharBudget(220));
+  check("名稱預算同樣隨寬度成長", workspaceNameBudget(400) > workspaceNameBudget(220));
+  check("名稱預算也有下限", workspaceNameBudget(0) >= 12);
+
+  // 迴歸：220px 下這個名稱一定要被中段省略（原本因預算太鬆而被 CSS 尾裁）。
+  const wsName = "Payments API integration staging";
+  const shownName = middleEllipsis(wsName, workspaceNameBudget(220));
+  check("220px 下長 workspace 名稱會中段省略", shownName.includes("…"));
+  check("中段省略後保住結尾的識別後綴", shownName.endsWith("staging"));
 }
 
 console.log(`\nlaunch-folder: ${passed} checks passed`);

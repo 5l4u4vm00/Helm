@@ -15,6 +15,12 @@ const DEFAULT_SCROLLBACK = 10000;
 export const SCROLLBACK_MIN = 1000;
 export const SCROLLBACK_MAX = 100000;
 
+/** 側欄寬度（px）與範圍：setter 與拖曳把手共用同一組界線。下限保住狀態燈 +
+ *  操作鍵仍可點，上限避免把終端機擠到不能用。 */
+export const SIDEBAR_WIDTH_DEFAULT = 220;
+export const SIDEBAR_WIDTH_MIN = 180;
+export const SIDEBAR_WIDTH_MAX = 480;
+
 /** 字型下拉選單的預設選項，value 為含備援字型的完整 CSS font-family 字串 */
 export interface FontFamilyPreset {
   id: string;
@@ -79,6 +85,7 @@ const KEYS = {
   cursorStyle: "helm.cursorStyle",
   cursorBlink: "helm.cursorBlink",
   scrollback: "helm.scrollback",
+  sidebarWidth: "helm.sidebarWidth",
   defaultShell: "helm.defaultShell",
   defaultCwd: "helm.defaultCwd",
   notificationsEnabled: "helm.notificationsEnabled",
@@ -104,6 +111,9 @@ interface SettingsState {
   cursorBlink: boolean;
   // 每個 session 保留的回捲行數；agent transcript 動輒上萬行，預設放寬到 10000。
   scrollback: number;
+  // 側欄寬度（px）。agent 自動標題動輒 40 字元，預設 220px 只放得下一半，
+  // 所以寬度是使用者偏好而非固定版面常數。
+  sidebarWidth: number;
   defaultShell: string;
   defaultCwd: string;
   notificationsEnabled: boolean;
@@ -130,6 +140,7 @@ interface SettingsState {
   setCursorStyle: (v: CursorStyle) => void;
   setCursorBlink: (v: boolean) => void;
   setScrollback: (v: number) => void;
+  setSidebarWidth: (v: number) => void;
   setDefaultShell: (v: string) => void;
   setDefaultCwd: (v: string) => void;
   setNotificationsEnabled: (v: boolean) => void;
@@ -172,6 +183,13 @@ function initialScrollback(): number {
     : DEFAULT_SCROLLBACK;
 }
 
+function initialSidebarWidth(): number {
+  const v = Number(localStorage.getItem(KEYS.sidebarWidth));
+  return Number.isFinite(v) && v >= SIDEBAR_WIDTH_MIN && v <= SIDEBAR_WIDTH_MAX
+    ? v
+    : SIDEBAR_WIDTH_DEFAULT;
+}
+
 function initialBool(key: string): boolean {
   const v = localStorage.getItem(key);
   return v === null ? true : v === "true";
@@ -193,6 +211,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   cursorStyle: initialCursorStyle(),
   cursorBlink: initialCursorBlink(),
   scrollback: initialScrollback(),
+  sidebarWidth: initialSidebarWidth(),
   defaultShell: localStorage.getItem(KEYS.defaultShell) || "",
   defaultCwd: localStorage.getItem(KEYS.defaultCwd) || "",
   notificationsEnabled: initialBool(KEYS.notificationsEnabled),
@@ -232,6 +251,13 @@ export const useSettingsStore = create<SettingsState>((set) => ({
     const lines = Math.min(SCROLLBACK_MAX, Math.max(SCROLLBACK_MIN, v));
     localStorage.setItem(KEYS.scrollback, String(lines));
     set({ scrollback: lines });
+  },
+  // 拖曳把手會高頻呼叫：界線防護留在 setter 內，越界值不能寫進 localStorage。
+  setSidebarWidth: (v) => {
+    if (!Number.isFinite(v)) return;
+    const width = Math.min(SIDEBAR_WIDTH_MAX, Math.max(SIDEBAR_WIDTH_MIN, Math.round(v)));
+    localStorage.setItem(KEYS.sidebarWidth, String(width));
+    set({ sidebarWidth: width });
   },
   setDefaultShell: (v) => {
     localStorage.setItem(KEYS.defaultShell, v);

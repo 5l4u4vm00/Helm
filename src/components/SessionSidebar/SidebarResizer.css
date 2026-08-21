@@ -1,0 +1,45 @@
+/* 側欄寬度把手：透明 hit area（6px），hover/拖曳/鍵盤聚焦時顯示中央線。
+   視覺上的 1px 分隔由 .sidebar 的 border-right 提供，同 split 分隔線的做法。 */
+.sidebar-resizer {
+  position: relative;
+  flex: 0 0 auto;
+  width: 6px;
+  margin-left: -3px; /* hit area 中心對齊側欄邊界，不佔用版面寬度 */
+  cursor: col-resize;
+  touch-action: none;
+  z-index: 5; /* 在 app-body 之上，浮動面板（10+）之下 */
+}
+
+.sidebar-resizer::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 2px;
+  width: 2px;
+  background: transparent;
+  transition: background 0.1s;
+}
+
+.sidebar-resizer:hover::after,
+.sidebar-resizer.dragging::after,
+.sidebar-resizer:focus-visible::after {
+  background: var(--accent, #89b4fa);
+}
+
+/* 鍵盤聚焦以中央線表示，不需要外框（同 .split-resizer）。 */
+.sidebar-resizer:focus-visible {
+  outline: none;
+}
+
+/* 拖曳期間全域關閉文字選取並鎖定 cursor。與 SplitResizers.css 的
+   body.pane-resizing 同義，但刻意獨立一份 class：側欄在完全沒有 split
+   的情況下也要能拖，不能依賴那個檔案剛好被載入。 */
+body.sidebar-resizing {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+body.sidebar-resizing * {
+  cursor: col-resize !important;
+}

@@ -217,7 +217,13 @@ export const SessionItem = memo(function SessionItem({
           onBlur={(e) => commitRename(e.currentTarget.value)}
         />
       ) : (
-        <span className="session-name" title={t("sidebar.renameSession")}>
+        /* Full title first, rename hint after (same value+hint tooltip shape
+           as the workspace folder line): agent CLIs write 40-char titles that
+           the row clips, and the clipped part is the informative half. */
+        <span
+          className="session-name"
+          title={`${s.title}\n${t("sidebar.renameSession")}`}
+        >
           {s.title}
         </span>
       )}

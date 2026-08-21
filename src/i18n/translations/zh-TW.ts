@@ -127,6 +127,7 @@ export const zhTW: Record<string, string> = {
   // Sidebar
   "sidebar.newWorkspace": "新增 Workspace",
   "sidebar.hide": "隱藏側欄",
+  "sidebar.resize": "拖曳調整側欄寬度（方向鍵微調，雙擊回預設）",
   "sidebar.settings": "設定",
   "sidebar.pendingApprovalBadge": "{count} 個待處理 — 點擊前往",
   "sidebar.addSession": "在此 Workspace 新增 Shell",
