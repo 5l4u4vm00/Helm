@@ -1,5 +1,6 @@
 /* 側欄寬度把手：透明 hit area（6px），hover/拖曳/鍵盤聚焦時顯示中央線。
-   視覺上的 1px 分隔由 .sidebar 的 border-right 提供，同 split 分隔線的做法。 */
+   側欄與終端機之間刻意沒有常駐分隔線（.sidebar 不畫 border-right）：背景色
+   已足以區分兩區，那條白邊在深色主題下反而搶眼。 */
 .sidebar-resizer {
   position: relative;
   flex: 0 0 auto;

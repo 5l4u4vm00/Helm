@@ -7,7 +7,12 @@ import { useMemo, useRef } from "react";
 import { useSessionStore } from "../../store/sessions";
 import { projectSidebarSessions } from "../../store/sidebarProjection";
 import { useWorkspaceStore } from "../../store/workspaces";
-import { groupSessions, clusterBySplitGroup, DEFAULT_WORKSPACE_ID } from "../../store/workspaceGroups";
+import {
+  groupSessions,
+  clusterBySplitGroup,
+  resolveFocusedWorkspace,
+  DEFAULT_WORKSPACE_ID,
+} from "../../store/workspaceGroups";
 import { useLayoutStore } from "../../store/layout";
 import { findTreeBySession } from "../../store/layoutTree";
 import { useUiStore } from "../../store/ui";
@@ -42,6 +47,13 @@ export function SessionSidebar() {
       sessions: clusterBySplitGroup(g.sessions, groupIdOf),
     }));
   }, [workspaces, sessions, trees]);
+
+  // Derived, never stored (see workspaceGroups): the active session's workspace
+  // is the one panels scope to, so the sidebar gives its label full contrast.
+  const focusedWorkspaceId = useMemo(
+    () => resolveFocusedWorkspace(sessions, activeId),
+    [sessions, activeId],
+  );
 
   const addWorkspace = () => {
     setRenamingId(newWorkspace());
@@ -82,6 +94,7 @@ export function SessionSidebar() {
               activeId={activeId}
               listRef={listRef}
               deletable={g.workspace.id !== DEFAULT_WORKSPACE_ID}
+              focused={g.workspace.id === focusedWorkspaceId}
               regionEntry={!activeId && index === 0}
             />
           ))}

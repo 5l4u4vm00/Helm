@@ -1,8 +1,13 @@
-// One collapsible workspace group: header (chevron / name / count / badge) with
-// its action buttons on a second row, plus its session rows. The actions moved
-// off the header line because eight elements on one 220px row left the name a
-// couple of characters; that row now carries information only. The whole group is a drop target so a session can
-// be dragged in even when the group is collapsed.
+// One collapsible workspace group: header (chevron / name / count / badge, then
+// all four action buttons) plus its session rows. The actions sit on the single
+// header line — they briefly lived on a second row because at 15px/6px they left
+// the name a couple of characters, but shrinking them to a 20px square (see the
+// row-level `.icon-btn` rule) makes all four fit and removes a whole
+// show/hide mechanism. They stay hidden until the group's `.workspace-head` is
+// hovered or focused, so the resting line reads as information only.
+// Session rows hang off a left accent rail rather than an indent, which is what
+// makes group membership visible at a glance. The whole group is a drop target so
+// a session can be dragged in even when the group is collapsed.
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { useSessionStore } from "../../store/sessions";
 import type { SidebarSession } from "../../store/sidebarProjection";
@@ -36,6 +41,8 @@ interface WorkspaceGroupProps {
   activeId: string | null;
   listRef: React.RefObject<HTMLDivElement | null>;
   deletable: boolean;
+  /** The active session's workspace: gets the lit rail and full-contrast label. */
+  focused: boolean;
   regionEntry: boolean;
 }
 
@@ -47,6 +54,7 @@ export const WorkspaceGroup = memo(function WorkspaceGroup({
   activeId,
   listRef,
   deletable,
+  focused,
   regionEntry,
 }: WorkspaceGroupProps) {
   const t = useT();
@@ -72,10 +80,14 @@ export const WorkspaceGroup = memo(function WorkspaceGroup({
     if (w.folder) probeFolder(w.folder);
   }, [w.folder, probeFolder]);
   // 側欄可調寬，所以裁切預算跟著寬度走，而不是寫死的字元數。名稱與路徑分開
-  // 算：名稱那行還要分給 chevron / 計數 / 徽章，預算比路徑行小。
+  // 算：名稱那行還要分給 chevron / 計數 / 徽章 / 四顆操作鍵，預算比路徑行小。
+  //
+  // 路徑那行傳入實測值而非沿用預設：這一行縮排到 15px、字級降到 9.5px，量到的
+  // 保留寬是 75px（預設只假設 44px）、每字元 4.56px。照預設算會在窄側欄時溢出被
+  // CSS 從尾端裁掉——正好毀掉 head-clipping 要保住的結尾資料夾名。取 4.8 / 78
+  // 讓預算落在實際盒寬之內，維持 sidebarCharBudget 說的保守偏誤。
   const sidebarWidth = useSettingsStore((s) => s.sidebarWidth);
-  const charBudget = sidebarCharBudget(sidebarWidth);
-  const nameBudget = workspaceNameBudget(sidebarWidth);
+  const charBudget = sidebarCharBudget(sidebarWidth, 4.8, 78);
   const [dragOver, setDragOver] = useState(false);
   // 所有 waiting 一視同仁：agentState === "waiting" 涵蓋 approval / question /
   // plan（question/plan 沒有 pendingApproval，但同樣需要使用者處理）。
@@ -83,6 +95,12 @@ export const WorkspaceGroup = memo(function WorkspaceGroup({
     () => sessions.filter(({ session: s }) => s.agentState === "waiting").length,
     [sessions],
   );
+  // 名稱預算要扣掉「平時就看得見」的控制項：資料夾/啟動設定鍵設定後會保持著色
+  // 不隨 hover 消失，approval 徽章則是沒處理完就一直在。這幾顆會實際壓縮名稱的
+  // 可用寬度，不扣就會溢出被 CSS 從尾端裁掉。
+  const alwaysOnBadges =
+    (w.folder && !folderMissing ? 1 : 0) + (w.recipe ? 1 : 0) + (pendingCount > 0 ? 1 : 0);
+  const nameBudget = workspaceNameBudget(sidebarWidth, alwaysOnBadges);
   // Counter to ignore dragleave noise from child elements.
   const dragDepth = useRef(0);
 
@@ -184,6 +202,7 @@ export const WorkspaceGroup = memo(function WorkspaceGroup({
   return (
     <div
       className={`workspace-group ${dragOver ? "drag-over" : ""}`}
+      data-focused={focused ? "true" : undefined}
       onDragEnter={(e) => {
         e.preventDefault();
         dragDepth.current += 1;
@@ -199,151 +218,151 @@ export const WorkspaceGroup = memo(function WorkspaceGroup({
       }}
       onDrop={onDrop}
     >
-      <div
-        className="workspace-header"
-        role="button"
-        tabIndex={-1}
-        data-region-entry={regionEntry ? "true" : undefined}
-        aria-expanded={!w.collapsed}
-        onClick={() => {
-          // While confirming, a click outside the ✓/✕ buttons cancels (see
-          // SessionItem) rather than collapsing the group.
-          if (confirming) setPendingAction(null);
-          else if (!renaming) toggleCollapsed(w.id);
-        }}
-        onDoubleClick={() => {
-          if (!renaming) onRenameStart();
-        }}
-        onKeyDown={onHeaderKeyDown}
-      >
-        <span className="workspace-chevron">{w.collapsed ? "▸" : "▾"}</span>
-        {confirming ? (
-          <>
-            <span className="sidebar-inline-confirm">
-              {t("sidebar.confirmDeleteWorkspace", { count: sessions.length })}
+      {/* The header line and its action row share one hover container: the row
+          must stay up while the cursor travels onto it, yet hanging the trigger
+          on the whole group popped it open for any session row too. */}
+      <div className="workspace-head">
+        <div
+          className="workspace-header"
+          role="button"
+          tabIndex={-1}
+          data-region-entry={regionEntry ? "true" : undefined}
+          aria-expanded={!w.collapsed}
+          onClick={() => {
+            // While confirming, a click outside the ✓/✕ buttons cancels (see
+            // SessionItem) rather than collapsing the group.
+            if (confirming) setPendingAction(null);
+            else if (!renaming) toggleCollapsed(w.id);
+          }}
+          onDoubleClick={() => {
+            if (!renaming) onRenameStart();
+          }}
+          onKeyDown={onHeaderKeyDown}
+        >
+          <span className="workspace-chevron">{w.collapsed ? "▸" : "▾"}</span>
+          {confirming ? (
+            <>
+              <span className="sidebar-inline-confirm">
+                {t("sidebar.confirmDeleteWorkspace", { count: sessions.length })}
+              </span>
+              <button
+                className="icon-btn confirm-yes"
+                title={t("sidebar.confirmYes")}
+                tabIndex={-1}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  confirmDelete(e.currentTarget.closest<HTMLElement>(".workspace-header"));
+                }}
+              >
+                ✓
+              </button>
+              <button
+                className="icon-btn confirm-no"
+                title={t("sidebar.confirmNo")}
+                tabIndex={-1}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setPendingAction(null);
+                  e.currentTarget.closest<HTMLElement>(".workspace-header")?.focus();
+                }}
+              >
+                ✕
+              </button>
+            </>
+          ) : renaming ? (
+            <input
+              className="workspace-rename-input"
+              defaultValue={w.name}
+              autoFocus
+              onFocus={(e) => e.currentTarget.select()}
+              onClick={(e) => e.stopPropagation()}
+              onKeyDown={onRenameKeyDown}
+              onBlur={(e) => commitRename(e.currentTarget.value)}
+            />
+          ) : (
+            /* Middle-elided (see middleEllipsis): a workspace name identifies
+               itself at both ends, so tail clipping throws away half of it.
+               Full name stays in the tooltip. */
+            <span className="workspace-name" title={w.name}>
+              {middleEllipsis(w.name, nameBudget)}
             </span>
+          )}
+          {!confirming && <span className="workspace-count">{sessions.length}</span>}
+          {/* Cross-workspace alert: pending approvals inside this group. */}
+          {!confirming && pendingCount > 0 && (
             <button
-              className="icon-btn confirm-yes"
-              title={t("sidebar.confirmYes")}
+              className="workspace-approval-badge"
+              title={t("sidebar.pendingApprovalBadge", { count: pendingCount })}
               tabIndex={-1}
               onClick={(e) => {
                 e.stopPropagation();
-                confirmDelete(e.currentTarget.closest<HTMLElement>(".workspace-header"));
+                activateFirstPendingApproval(w.id);
               }}
+              onDoubleClick={(e) => e.stopPropagation()}
             >
-              ✓
-            </button>
-            <button
-              className="icon-btn confirm-no"
-              title={t("sidebar.confirmNo")}
-              tabIndex={-1}
-              onClick={(e) => {
-                e.stopPropagation();
-                setPendingAction(null);
-                e.currentTarget.closest<HTMLElement>(".workspace-header")?.focus();
-              }}
-            >
-              ✕
-            </button>
-          </>
-        ) : renaming ? (
-          <input
-            className="workspace-rename-input"
-            defaultValue={w.name}
-            autoFocus
-            onFocus={(e) => e.currentTarget.select()}
-            onClick={(e) => e.stopPropagation()}
-            onKeyDown={onRenameKeyDown}
-            onBlur={(e) => commitRename(e.currentTarget.value)}
-          />
-        ) : (
-          /* Middle-elided (see middleEllipsis): a workspace name identifies
-             itself at both ends, so tail clipping throws away half of it.
-             Full name stays in the tooltip. */
-          <span className="workspace-name" title={w.name}>
-            {middleEllipsis(w.name, nameBudget)}
-          </span>
-        )}
-        {!confirming && <span className="workspace-count">{sessions.length}</span>}
-        {/* Cross-workspace alert: pending approvals inside this group. */}
-        {!confirming && pendingCount > 0 && (
-          <button
-            className="workspace-approval-badge"
-            title={t("sidebar.pendingApprovalBadge", { count: pendingCount })}
-            tabIndex={-1}
-            onClick={(e) => {
-              e.stopPropagation();
-              activateFirstPendingApproval(w.id);
-            }}
-            onDoubleClick={(e) => e.stopPropagation()}
-          >
-            {pendingCount}
-          </button>
-        )}
-      </div>
-      {/* Action row. Hidden while confirming or renaming so the header line
-          owns the interaction; the container's `display` alone decides
-          visibility (no `hover-action` opacity on top of it) so there is one
-          mechanism to reason about. */}
-      {!confirming && !renaming && (
-        <div className="workspace-header-actions">
-          <button
-            className={`icon-btn ${w.folder && !folderMissing ? "on" : ""}`}
-            title={t("sidebar.selectFolder")}
-            tabIndex={-1}
-            onClick={(e) => {
-              e.stopPropagation();
-              void chooseFolder();
-            }}
-            onDoubleClick={(e) => e.stopPropagation()}
-          >
-            📁
-          </button>
-          <button
-            className={`icon-btn ${w.recipe ? "on" : ""}`}
-            title={t("sidebar.editRecipe")}
-            tabIndex={-1}
-            onClick={(e) => {
-              e.stopPropagation();
-              setRecipeWorkspaceId(w.id);
-            }}
-            onDoubleClick={(e) => e.stopPropagation()}
-          >
-            ⚙
-          </button>
-          <button
-            className="icon-btn"
-            title={t("sidebar.addSession")}
-            tabIndex={-1}
-            onClick={(e) => {
-              e.stopPropagation();
-              addSession();
-            }}
-            onDoubleClick={(e) => e.stopPropagation()}
-          >
-            +
-          </button>
-          {deletable && (
-            <button
-              className="icon-btn"
-              title={t("sidebar.removeWorkspace")}
-              tabIndex={-1}
-              onClick={(e) => {
-                e.stopPropagation();
-                requestDelete();
-                // The header is no longer this button's ancestor: reach it via
-                // the group so the confirmation still lands on the header row.
-                e.currentTarget
-                  .closest<HTMLElement>(".workspace-group")
-                  ?.querySelector<HTMLElement>(".workspace-header")
-                  ?.focus();
-              }}
-            >
-              ×
+              {pendingCount}
             </button>
           )}
+          {/* All four actions, ordered settings → create → destroy. Hidden while
+              confirming or renaming so the header line owns the interaction, and
+              otherwise revealed by hover/focus on `.workspace-head`. */}
+          {!confirming && !renaming && (
+            <span className="workspace-header-actions">
+              <button
+                className={`icon-btn hover-action ${w.folder && !folderMissing ? "on" : ""}`}
+                title={t("sidebar.selectFolder")}
+                tabIndex={-1}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  void chooseFolder();
+                }}
+                onDoubleClick={(e) => e.stopPropagation()}
+              >
+                📁
+              </button>
+              <button
+                className={`icon-btn hover-action ${w.recipe ? "on" : ""}`}
+                title={t("sidebar.editRecipe")}
+                tabIndex={-1}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setRecipeWorkspaceId(w.id);
+                }}
+                onDoubleClick={(e) => e.stopPropagation()}
+              >
+                ⚙
+              </button>
+              <button
+                className="icon-btn hover-action"
+                title={t("sidebar.addSession")}
+                tabIndex={-1}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  addSession();
+                }}
+                onDoubleClick={(e) => e.stopPropagation()}
+              >
+                +
+              </button>
+              {deletable && (
+                <button
+                  className="icon-btn hover-action"
+                  title={t("sidebar.removeWorkspace")}
+                  tabIndex={-1}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    requestDelete();
+                    e.currentTarget.closest<HTMLElement>(".workspace-header")?.focus();
+                  }}
+                  onDoubleClick={(e) => e.stopPropagation()}
+                >
+                  ×
+                </button>
+              )}
+            </span>
+          )}
         </div>
-      )}
+      </div>
       {w.folder && (
         <div
           className="workspace-folder"

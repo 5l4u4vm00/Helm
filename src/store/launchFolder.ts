@@ -142,13 +142,45 @@ export function sidebarCharBudget(widthPx: number, perChar = 5.2, chrome = 44): 
 }
 
 /**
- * Same idea for the workspace **name**, which lives on a busier line: the
- * chevron, the session count and (sometimes) the approval badge share it, and
- * it renders at 11px bold rather than 10px. A budget tuned for the folder line
- * is too generous here — the name then gets CSS-clipped from the tail before
- * `middleEllipsis` ever trims it, which loses the trailing half that
- * middle-eliding exists to keep.
+ * Same idea for the workspace **name**, which lives on a much busier line: the
+ * chevron (9px), the session count (14px), sometimes the approval badge, and the
+ * four action buttons (20px each) all share it, so the reserve is far larger
+ * than the folder line's. A budget tuned for that line is too generous here —
+ * the name then gets CSS-clipped from the tail before `middleEllipsis` ever
+ * trims it, which loses the trailing half that middle-eliding exists to keep.
+ *
+ * `perChar` is well *above* the folder line's even though the name renders at a
+ * smaller 10px: it is bold, uppercase and letter-spaced, and caps carry no
+ * narrow lowercase forms to average the advance down.
+ *
+ * Both numbers were **measured**, not estimated: the name box is exactly
+ * `sidebarWidth - 124 - 20 * badges` px and its font averages 6.83px per
+ * uppercase character including tracking. `chrome` is rounded up and `perChar`
+ * up to 7.1 so the budget lands just *under* what the box holds — the
+ * conservative bias `middleEllipsis` documents. Overshooting is the failure that
+ * matters: CSS then clips the tail before `middleEllipsis` ever runs, destroying
+ * the trailing half that middle-eliding exists to keep.
+ *
+ * `alwaysOnBadges` is the count of 20px controls that stay visible on the line
+ * when the pointer is elsewhere — the folder and recipe buttons keep their tint
+ * at rest (that state is information, not an action) and the approval badge
+ * pulses until answered. They cannot fold into `chrome`: a workspace with a
+ * folder set is permanently 20px narrower than one without, and charging every
+ * row for badges it does not have would over-elide the common case.
+ *
+ * Deliberately **not** routed through `sidebarCharBudget`: its 12-character
+ * floor is wider than this box at the minimum sidebar width (180px with one
+ * badge leaves 36px ≈ 5 characters), so the floor itself would overshoot and
+ * hand the tail back to CSS.
+ *
+ * The floor is **5**, not lower, because that is `middleEllipsis`'s own cutoff:
+ * below it that function returns the string *untouched*, so a floor of 4 does not
+ * mean "elide hard" — it means no eliding happens at all and the full name spills
+ * out for CSS to clip from the tail. Exactly the failure this budget exists to
+ * prevent, and invisible until you measure the box.
  */
-export function workspaceNameBudget(widthPx: number): number {
-  return sidebarCharBudget(widthPx, 6.4, 72);
+export function workspaceNameBudget(widthPx: number, alwaysOnBadges = 0): number {
+  if (!Number.isFinite(widthPx)) return 12;
+  const badges = Math.max(0, alwaysOnBadges);
+  return Math.max(5, Math.floor((widthPx - 128 - badges * 20) / 7.1));
 }
