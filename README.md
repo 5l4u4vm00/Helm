@@ -82,6 +82,10 @@ Helm checks for updates automatically every time it starts and lets you know
 when a new version is available — you choose when to install it, either from
 the prompt in the toolbar or from **Settings → About**.
 
+What changed in each version is summarised in [CHANGELOG.md](CHANGELOG.md); the
+full notes for any release live on its
+[GitHub Releases](https://github.com/YIHSUAN603/Helm/releases) page.
+
 Prefer to build it yourself? See [Building from source](#building-from-source)
 below.
 
