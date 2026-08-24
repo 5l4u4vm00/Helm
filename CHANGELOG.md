@@ -4,6 +4,18 @@ All notable changes to Helm are recorded here. The format follows [Keep a Change
 
 This file was assembled from the published [GitHub Releases](https://github.com/YIHSUAN603/Helm/releases), which remain the canonical record -- each heading links back to its release, where the full notes and the download table for that version live.
 
+## [0.19.2](https://github.com/YIHSUAN603/Helm/releases/tag/v0.19.2) - 2026-08-24
+
+_The sidebar handle stops drawing on itself_
+
+### Added
+
+- **A `CHANGELOG.md`**, assembled from the published GitHub Releases and covering every version back to the first. The releases remain the canonical record — each heading links to its own release page, where the full notes and that version's download table live.
+
+### Changed
+
+- **The sidebar width handle no longer draws a centre line** in any state — hover, drag, or keyboard focus. The 6px hit area and the drag behaviour are unchanged; the `col-resize` cursor is already the affordance, and an accent-coloured 2px line appearing under the pointer was the loudest thing on screen in a dark theme, right next to a border that was deliberately removed for the same reason. `:focus-visible { outline: none }` stays, so the browser default frame does not step in to replace what was just taken out.
+
 ## [0.19.1](https://github.com/YIHSUAN603/Helm/releases/tag/v0.19.1) - 2026-08-24
 
 _The workspace actions come back to one line_
