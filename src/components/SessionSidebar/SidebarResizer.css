@@ -6,7 +6,11 @@
   position: relative;
   flex: 0 0 auto;
   width: 6px;
-  margin-left: -3px; /* hit area 中心對齊側欄邊界，不佔用版面寬度 */
+  /* hit area 中心對齊側欄邊界，且完全不佔用版面寬度：margin 必須抵掉整個
+     6px（-3px 只抵掉一半，剩下的 3px 會在側欄與終端區之間擠出一條縫，露出
+     底下較亮的 --app-bg），再用 -3px 的位移把 6px 熱區跨在邊界兩側。 */
+  margin-left: -3px;
+  margin-right: -3px;
   cursor: col-resize;
   touch-action: none;
   z-index: 5; /* 在 app-body 之上，浮動面板（10+）之下 */
