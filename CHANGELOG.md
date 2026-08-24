@@ -4,6 +4,18 @@ All notable changes to Helm are recorded here. The format follows [Keep a Change
 
 This file was assembled from the published [GitHub Releases](https://github.com/YIHSUAN603/Helm/releases), which remain the canonical record -- each heading links back to its release, where the full notes and the download table for that version live.
 
+## [0.19.3](https://github.com/YIHSUAN603/Helm/releases/tag/v0.19.3) - 2026-08-24
+
+_The seam beside the sidebar closes_
+
+### Fixed
+
+- **The sidebar no longer shows a thin bright seam where it meets the terminal.** The width handle is a 6px transparent hit area meant to straddle the boundary without occupying any layout width, but it only cancelled half of itself: `margin-left: -3px` offsets the handle onto the edge, and with no matching `margin-right` the remaining 3px stayed in the flex row and pushed the terminal away from the sidebar. The gap let the lighter `--app-bg` show through as a vertical line — precisely the permanent divider that v0.19.2 removed on purpose. Both margins are now `-3px`, so the hit area costs nothing and still spans both sides of the boundary.
+
+### Changed
+
+- **`tauri-plugin-single-instance` is registered in release builds only.** A debug build now allows several windows at once, which is what makes it possible to put the same layout side by side under different themes or DPI settings while working on it. Shipped behaviour is untouched: `helm .` and the Explorer right-click entry still focus the running window instead of starting a second copy of the app.
+
 ## [0.19.2](https://github.com/YIHSUAN603/Helm/releases/tag/v0.19.2) - 2026-08-24
 
 _The sidebar handle stops drawing on itself_
