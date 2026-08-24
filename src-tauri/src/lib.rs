@@ -188,12 +188,18 @@ pub fn run() {
     }
     // argv 必須在 builder 之前讀：single-instance 註冊後，第二個行程會直接退出。
     let startup_folder = launch::capture_startup_folder();
-    tauri::Builder::default()
-        // 必須是第一個 plugin（Tauri 官方要求）：後續啟動的行程在這裡就被攔下，
-        // 把資料夾轉給既有視窗（見 src/launch.rs）。
-        .plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
-            launch::handle_second_instance(app, args, cwd);
-        }))
+    let builder = tauri::Builder::default();
+    // single-instance 只在 release build 註冊，且必須是第一個 plugin（Tauri 官方
+    // 要求）：後續啟動的行程在這裡就被攔下，把資料夾轉給既有視窗（見 launch.rs）。
+    //
+    // debug build 刻意不註冊，讓 `npm run tauri dev` 能同時開多個視窗並排比對
+    // UI（例如同一版面在不同主題／DPI 下的樣子）。正式版行為不受影響：`helm .`
+    // 與 Explorer 右鍵仍然聚焦既有視窗，而不是開第二個 app。
+    #[cfg(not(debug_assertions))]
+    let builder = builder.plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
+        launch::handle_second_instance(app, args, cwd);
+    }));
+    builder
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
