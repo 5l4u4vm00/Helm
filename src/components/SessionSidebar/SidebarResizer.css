@@ -1,6 +1,7 @@
-/* 側欄寬度把手：透明 hit area（6px），hover/拖曳/鍵盤聚焦時顯示中央線。
+/* 側欄寬度把手：純透明 hit area（6px），任何狀態都不畫線。
    側欄與終端機之間刻意沒有常駐分隔線（.sidebar 不畫 border-right）：背景色
-   已足以區分兩區，那條白邊在深色主題下反而搶眼。 */
+   已足以區分兩區，那條邊線在深色主題下反而搶眼；hover/拖曳時的中央線同理，
+   cursor 變成 col-resize 已經足夠提示這裡可以拖。 */
 .sidebar-resizer {
   position: relative;
   flex: 0 0 auto;
@@ -11,24 +12,7 @@
   z-index: 5; /* 在 app-body 之上，浮動面板（10+）之下 */
 }
 
-.sidebar-resizer::after {
-  content: "";
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 2px;
-  width: 2px;
-  background: transparent;
-  transition: background 0.1s;
-}
-
-.sidebar-resizer:hover::after,
-.sidebar-resizer.dragging::after,
-.sidebar-resizer:focus-visible::after {
-  background: var(--accent, #89b4fa);
-}
-
-/* 鍵盤聚焦以中央線表示，不需要外框（同 .split-resizer）。 */
+/* 鍵盤聚焦也不畫外框：這個把手只調整寬度，沒有視覺回饋的需求。 */
 .sidebar-resizer:focus-visible {
   outline: none;
 }
