@@ -11,6 +11,7 @@ import {
   type Workspace,
   type WorkspaceRecipe,
 } from "./workspaceGroups";
+import { moveWorkspaceRelative } from "./sidebarOrder";
 
 interface WorkspaceState {
   workspaces: Workspace[];
@@ -23,6 +24,9 @@ interface WorkspaceState {
    *  Normalized on the way in, so a reserved or malformed env key never lands
    *  in the store at all — the UI reports it, the store simply never holds it. */
   setWorkspaceRecipe: (id: string, recipe: WorkspaceRecipe | undefined) => void;
+  /** Reposition a workspace relative to another one. Sidebar order IS array
+   *  order, so this is the whole feature. */
+  reorderWorkspace: (dragId: string, targetId: string, edge: "before" | "after") => void;
   /** Remove the workspace itself; refuses the default one. */
   deleteWorkspace: (id: string) => void;
   toggleCollapsed: (id: string) => void;
@@ -87,6 +91,11 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
           w.id === id ? { ...w, recipe: normalizeRecipe(recipe, IS_WINDOWS) } : w,
         ),
       ),
+    })),
+
+  reorderWorkspace: (dragId, targetId, edge) =>
+    set((s) => ({
+      workspaces: persist(moveWorkspaceRelative(s.workspaces, dragId, targetId, edge)),
     })),
 
   deleteWorkspace: (id) => {

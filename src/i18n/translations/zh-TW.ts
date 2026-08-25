@@ -304,6 +304,8 @@ export const zhTW: Record<string, string> = {
   "shortcut.section.terminal": "終端機",
   "shortcut.prefix.focusPane": "把焦點移到該方向的窗格",
   "shortcut.sidebar.navigate": "在樹狀結構間移動焦點",
+  "shortcut.sidebar.moveUp": "上移（限同一個 Workspace 內）",
+  "shortcut.sidebar.moveDown": "下移（限同一個 Workspace 內）",
   "shortcut.sidebar.rename": "重新命名",
   "shortcut.sidebar.newSession": "在此 Workspace 新增 Session",
   "shortcut.sidebar.newWorkspace": "新增 Workspace",

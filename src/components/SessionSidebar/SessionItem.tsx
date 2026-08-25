@@ -9,11 +9,17 @@ import { useUiStore } from "../../store/ui";
 import { useWorkspaceStore } from "../../store/workspaces";
 import type { SidebarSession } from "../../store/sidebarProjection";
 import type { SplitClusterInfo } from "../../store/workspaceGroups";
-import { activateSession, newSession, newWorkspace } from "../../commands/actions";
+import {
+  activateSession,
+  moveSessionInSidebar,
+  newSession,
+  newWorkspace,
+} from "../../commands/actions";
 import { focusActiveTerminal } from "../../focus/focusUtils";
 import { handleListKey, hasNonShiftModifier } from "../../focus/listNav";
 import { pickFolder } from "../../ipc/dialog";
 import { useT } from "../../i18n";
+import { SESSION_DND_TYPE } from "./dropPosition";
 import { resolveSidebarShortcut } from "./sidebarKeymap";
 
 /** Every visible tree node participates in roving focus. */
@@ -134,6 +140,8 @@ export const SessionItem = memo(function SessionItem({
       else if (action === "choose-folder") void chooseFolder();
       else if (action === "request-delete") requestClose();
       else if (action === "focus-terminal") focusActiveTerminal();
+      else if (action === "move-up") moveRow(e.currentTarget, -1);
+      else if (action === "move-down") moveRow(e.currentTarget, 1);
     } else if (
       !hasNonShiftModifier(e) &&
       handleListKey(e.key, listRef.current, SIDEBAR_NAV_SELECTOR)
@@ -142,7 +150,18 @@ export const SessionItem = memo(function SessionItem({
     }
   };
 
+  // Focus stays on the row across a reorder (React moves the keyed DOM node
+  // rather than recreating it), so the browser will not auto-scroll the list —
+  // do it explicitly, after the re-render has placed the row.
+  const moveRow = (row: HTMLElement, delta: 1 | -1) => {
+    moveSessionInSidebar(s.id, delta);
+    requestAnimationFrame(() => row.scrollIntoView({ block: "nearest" }));
+  };
+
   const onDragStart = (e: React.DragEvent) => {
+    e.dataTransfer.setData(SESSION_DND_TYPE, s.id);
+    // Kept alongside the typed payload so dragging a row onto a text field
+    // still yields something sane.
     e.dataTransfer.setData("text/plain", s.id);
     e.dataTransfer.effectAllowed = "move";
   };
@@ -154,6 +173,7 @@ export const SessionItem = memo(function SessionItem({
       role="button"
       tabIndex={isActive ? 0 : -1}
       data-region-entry={isActive ? "true" : undefined}
+      data-session-id={s.id}
       data-cluster-pos={clusterPos}
       data-cluster-group={clusterGroupId ?? undefined}
       // A draggable ancestor breaks text selection inside the input in WebKit.

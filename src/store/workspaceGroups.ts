@@ -255,3 +255,21 @@ export function clusterBySplitGroup<S extends { id: string }>(
   }
   return result;
 }
+
+/**
+ * Ids of the split-cluster run containing `sessionId`, in global array order —
+ * the block clusterBySplitGroup renders contiguously. Ungrouped = a run of one.
+ *
+ * This is the unit the sidebar reorders by: moving a single member would just
+ * get pulled back beside its siblings on the next render, landing the row
+ * somewhere the user never pointed at.
+ */
+export function splitRunIds<S extends { id: string }>(
+  sessions: S[],
+  sessionId: string,
+  groupIdOf: (sessionId: string) => string | null,
+): string[] {
+  const groupId = groupIdOf(sessionId);
+  if (groupId === null) return [sessionId];
+  return sessions.filter((s) => groupIdOf(s.id) === groupId).map((s) => s.id);
+}

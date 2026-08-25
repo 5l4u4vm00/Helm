@@ -24,6 +24,12 @@ import {
   resolveFocusedWorkspace,
   sessionsInWorkspace,
 } from "../store/workspaceGroups";
+import {
+  beforeIdAt,
+  neighborWorkspaceId,
+  stepInsertIndex,
+  type OrderRow,
+} from "../store/sidebarOrder";
 import { computeLayout, findTreeBySession, type LayoutNode, type SplitDir } from "../store/layoutTree";
 import { fleetStateOf, nextIdInState, type FleetState } from "../store/fleet";
 import { getProfile } from "../agents/registry";
@@ -189,6 +195,37 @@ function sessionIdsInSidebarOrder(): string[] {
     sessions: clusterBySplitGroup(g.sessions, groupIdOf).map((c) => c.session),
   }));
   return flattenGroupedIds(groups);
+}
+
+/**
+ * Move the focused session one step up (-1) or down (+1) inside its workspace.
+ * Clamps at the workspace edge rather than hopping into the neighbouring one:
+ * a hop would run the cross-workspace path, which evicts the session from its
+ * split group — too destructive for an arrow key, and with no undo.
+ */
+export function moveSessionInSidebar(sessionId: string, delta: 1 | -1): void {
+  const { sessions, reorderSession } = useSessionStore.getState();
+  const session = sessions.find((s) => s.id === sessionId);
+  if (!session) return;
+  const { trees } = useLayoutStore.getState();
+  const groupIdOf = (id: string) => findTreeBySession(trees, id);
+  const rows: OrderRow[] = clusterBySplitGroup(
+    sessionsInWorkspace(sessions, session.workspaceId),
+    groupIdOf,
+  ).map(({ session: s, cluster }) => ({ id: s.id, groupId: cluster.groupId }));
+  const i = rows.findIndex((r) => r.id === sessionId);
+  if (i < 0) return;
+  const at = stepInsertIndex(rows, i, delta);
+  if (at === null) return;
+  reorderSession(sessionId, session.workspaceId, beforeIdAt(rows, at));
+}
+
+/** Move the focused workspace one step up (-1) or down (+1); clamps at the ends. */
+export function moveWorkspaceInSidebar(workspaceId: string, delta: 1 | -1): void {
+  const { workspaces, reorderWorkspace } = useWorkspaceStore.getState();
+  const target = neighborWorkspaceId(workspaces, workspaceId, delta);
+  if (!target) return;
+  reorderWorkspace(workspaceId, target, delta === -1 ? "before" : "after");
 }
 
 /** Activate the next (+1) or previous (-1) session in sidebar order. */

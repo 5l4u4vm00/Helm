@@ -87,8 +87,10 @@ const KEY_LABELS: Record<string, string> = {
   ArrowDown: "↓",
 };
 
-function keyList(keys: string[]): string {
-  return keys.map((k) => KEY_LABELS[k] ?? k).join(" · ");
+function keyList(keys: string[], shift = false): string {
+  // Prefixed per key rather than once for the row: "Shift+↑ · Shift+K" is
+  // unambiguous where "Shift+↑ · K" reads as two different gestures.
+  return keys.map((k) => (shift ? "Shift+" : "") + (KEY_LABELS[k] ?? k)).join(" · ");
 }
 
 // Four directional bindings read better as one row: the first one carries the
@@ -131,7 +133,7 @@ function directSection(isMac: boolean): ShortcutSection {
 function sidebarSection(): ShortcutSection {
   const rows: ShortcutRow[] = [
     { keys: "j · k · ↑ · ↓ · g · G", titleKey: "shortcut.sidebar.navigate" },
-    ...SIDEBAR_TABLE.map((b) => ({ keys: keyList(b.keys), titleKey: b.titleKey })),
+    ...SIDEBAR_TABLE.map((b) => ({ keys: keyList(b.keys, b.shift), titleKey: b.titleKey })),
   ];
   return { titleKey: "shortcut.section.sidebar", noteKey: "shortcut.sidebarNote", rows };
 }

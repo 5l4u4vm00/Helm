@@ -16,6 +16,7 @@ import {
   resolveFocusedWorkspace,
   sanitizeRecipeEnv,
   sessionsInWorkspace,
+  splitRunIds,
   workspaceChangedFileCount,
   type Workspace,
 } from "../src/store/workspaceGroups.ts";
@@ -367,6 +368,31 @@ function sess(
     false,
   );
   check("壞掉的 recipe 不連累整個 workspace 被丟掉", badRecipe.length === 1);
+}
+
+// --- splitRunIds ----------------------------------------------------------
+{
+  const sessions = [
+    sess("a", "w1"),
+    sess("g1", "w1"),
+    sess("x", "w1"),
+    sess("g2", "w1"),
+    sess("g3", "w1"),
+  ];
+  const groupIdOf = (id: string) => (id.startsWith("g") ? "G" : null);
+
+  check("splitRunIds：沒分組的 session 是長度 1 的 run", splitRunIds(sessions, "a", groupIdOf).join(",") === "a");
+  // Interleaved on purpose: the run is defined by group membership, not by
+  // adjacency in the global array (clusterBySplitGroup is what makes it look
+  // adjacent).
+  check(
+    "splitRunIds：分組成員回傳整團，且維持全域陣列順序",
+    splitRunIds(sessions, "g3", groupIdOf).join(",") === "g1,g2,g3",
+  );
+  check(
+    "splitRunIds：從任一成員問都得到同一團",
+    splitRunIds(sessions, "g1", groupIdOf).join(",") === "g1,g2,g3",
+  );
 }
 
 console.log(`\nworkspace-groups: ${passed} checks passed`);

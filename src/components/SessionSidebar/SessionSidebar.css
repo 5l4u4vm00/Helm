@@ -50,10 +50,36 @@
   margin-bottom: 2px;
 }
 
+/* Shown only when no row is under the pointer (header, padding, collapsed,
+   empty) — the insertion line covers every other case.
+   All three drop affordances draw in --accent, not --active: --active is the
+   *selected row background* (see .session-item.active), which on the dark
+   themes is a near-invisible surface grey. */
 .workspace-group.drag-over {
-  outline: 1px solid var(--active);
+  outline: 1px solid var(--accent);
   outline-offset: -1px;
   background: var(--hover);
+}
+
+.workspace-group[data-ws-drop="before"] {
+  box-shadow: inset 0 2px 0 var(--accent);
+}
+
+.workspace-group[data-ws-drop="after"] {
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+
+/* Zero height plus a negative margin: the indicator never reflows the rows it
+   sits between, so the list does not jitter as the pointer crosses a row. The
+   z-index is what that costs — the negative margin puts the line underneath the
+   next row, whose own background would paint over it. */
+.sidebar-drop-line {
+  position: relative;
+  z-index: 1;
+  height: 0;
+  margin: -1px 6px;
+  border-top: 2px solid var(--accent);
+  border-radius: 1px;
 }
 
 .workspace-header {

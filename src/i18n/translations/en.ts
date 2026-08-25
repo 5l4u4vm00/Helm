@@ -311,6 +311,8 @@ export const en: Record<string, string> = {
   "shortcut.section.terminal": "Terminal",
   "shortcut.prefix.focusPane": "Focus the pane in that direction",
   "shortcut.sidebar.navigate": "Move focus through the tree",
+  "shortcut.sidebar.moveUp": "Move up (within the workspace)",
+  "shortcut.sidebar.moveDown": "Move down (within the workspace)",
   "shortcut.sidebar.rename": "Rename",
   "shortcut.sidebar.newSession": "New session in this workspace",
   "shortcut.sidebar.newWorkspace": "New workspace",

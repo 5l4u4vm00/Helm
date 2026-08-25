@@ -1,8 +1,9 @@
 // 多 session 狀態管理 + agent 感知。
 import { create } from "zustand";
 import { groupTreeOf, useLayoutStore } from "./layout";
-import { siblingFirstSession } from "./layoutTree";
-import { resolveFocusedWorkspace } from "./workspaceGroups";
+import { findTreeBySession, siblingFirstSession } from "./layoutTree";
+import { resolveFocusedWorkspace, splitRunIds } from "./workspaceGroups";
+import { moveSessionOrder } from "./sidebarOrder";
 import {
   clearNotifyDedupe,
   detectAgentEvent,
@@ -84,7 +85,18 @@ interface SessionState {
     startup?: { env?: Record<string, string>; command?: string },
   ) => string;
   closeSession: (id: string) => void;
-  moveSessionToWorkspace: (sessionId: string, workspaceId: string) => void;
+  /**
+   * Reposition a session in the sidebar: move it into `targetWorkspaceId`,
+   * immediately before `beforeId` (null = end of that workspace). Sidebar order
+   * IS array order, so this is the single write path for drag and keyboard
+   * reordering alike, and moving between workspaces is just the case where
+   * `targetWorkspaceId` differs.
+   */
+  reorderSession: (
+    sessionId: string,
+    targetWorkspaceId: string,
+    beforeId: string | null,
+  ) => void;
   setActive: (id: string) => void;
   setTitle: (id: string, title: string) => void;
   /** Explicit user rename; an empty name unlocks the automatic title again. */
@@ -231,16 +243,26 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     useNotificationsStore.getState().resolveSession(id);
   },
 
-  moveSessionToWorkspace: (sessionId, workspaceId) => {
+  reorderSession: (sessionId, targetWorkspaceId, beforeId) => {
     const { sessions } = get();
     const target = sessions.find((s) => s.id === sessionId);
-    if (!target || target.workspaceId === workspaceId) return;
-    // 維持「群組只含同 workspace 的 session」不變量：跨 workspace 即踢出群組。
-    useLayoutStore.getState().removeSession(sessionId);
+    if (!target) return;
+
+    let ids: string[];
+    if (target.workspaceId === targetWorkspaceId) {
+      // Within one workspace a split cluster moves as a unit: moving a single
+      // member would just get pulled back beside its siblings on the next
+      // render, landing the row somewhere the user never pointed at.
+      const { trees } = useLayoutStore.getState();
+      ids = splitRunIds(sessions, sessionId, (id) => findTreeBySession(trees, id));
+    } else {
+      // 維持「群組只含同 workspace 的 session」不變量：跨 workspace 即踢出群組。
+      useLayoutStore.getState().removeSession(sessionId);
+      ids = [sessionId];
+    }
+
     set((s) => ({
-      sessions: s.sessions.map((x) =>
-        x.id === sessionId ? { ...x, workspaceId } : x,
-      ),
+      sessions: moveSessionOrder(s.sessions, ids, targetWorkspaceId, beforeId),
     }));
   },
 

@@ -375,7 +375,7 @@ export function reconcileSnapshot(
       node = node && removeLeafBySession(node, id);
     }
 
-    // (5) 群組只含同 workspace 的 session（layout.ts 的 moveSessionToWorkspace
+    // (5) 群組只含同 workspace 的 session（sessions.ts 的 reorderSession
     // 靠踢出群組維持的那條不變量）。
     const survivors = collectSessionIds(node);
     const groupWs = survivors.length > 0 ? workspaceOf.get(survivors[0]) : undefined;
