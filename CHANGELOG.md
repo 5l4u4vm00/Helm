@@ -4,6 +4,21 @@ All notable changes to Helm are recorded here. The format follows [Keep a Change
 
 This file was assembled from the published [GitHub Releases](https://github.com/YIHSUAN603/Helm/releases), which remain the canonical record -- each heading links back to its release, where the full notes and the download table for that version live.
 
+## [0.20.0](https://github.com/YIHSUAN603/Helm/releases/tag/v0.20.0) - 2026-08-25
+
+_The sidebar takes the order you give it_
+
+### Added
+
+- **Workspaces and sessions can be reordered in the sidebar.** Drag a session between its siblings, or a workspace header among the other workspaces, and the arrangement persists across launches — workspaces through `helm.workspaces`, sessions through the `sessions.json` snapshot. Neither needed a new `order` field: a workspace's position already *is* its index in `workspaces[]`, and a session's position inside its workspace *is* its index in the global `sessions[]` filtered by `workspaceId`, so reordering is array surgery, kept pure and unit-tested in `store/sidebarOrder.ts`. Because the sidebar's visual order is also the switching order, `Ctrl+A n`/`p` and `Ctrl+A 1..9` now follow whatever arrangement you set — you can put the session you reach for most on `Ctrl+A 1`.
+- **`Shift+↑` / `Shift+↓` — or `Shift+K` / `Shift+J` — move the focused row without a mouse.** Shift is the only modifier the sidebar's region key layer allows, which is what rules out the `Alt+↑/↓` other editors use. A move **clamps at the workspace boundary instead of hopping into the next workspace**: crossing one runs the cross-workspace path, which evicts the session from its split group, and an arrow key should not be able to destroy a layout with no undo. Focus stays on the row you moved, so a following `j`/`k` continues from its new position.
+
+### Changed
+
+- **A split group moves as a single block when reordered inside its workspace**, and the insertion line snaps to the group's outer edges rather than pointing between two of its members. A gap inside a rendered cluster is not a real position — the next render pulls the members back together, and the row would land somewhere you never pointed at. Dragging a member to a *different* workspace is unchanged: it still leaves the split group first, preserving the rule that a group never spans workspaces.
+- **The sidebar's drop indicators are visible again.** All three — the insertion line, the whole-group outline, and the workspace edge marker — now draw in `--accent`. They had been using `--active`, which is the *selected row background*, a surface grey that is very nearly invisible on the dark themes. The insertion line also gets a `z-index`: it is drawn with a negative margin so it never reflows the rows around it, and that left the next row's background painting over it.
+- **Session drags carry a named MIME type** (`application/x-helm-session`, alongside the `text/plain` payload that was already there) and workspace drags carry their own. `getData` is unreadable during `dragover`, so the drop indicator has to decide from `dataTransfer.types` — with a single type, a workspace drag would have been read as a session drop. An unrelated drag from outside the app is now rejected outright instead of showing a move cursor over the sidebar.
+
 ## [0.19.3](https://github.com/YIHSUAN603/Helm/releases/tag/v0.19.3) - 2026-08-24
 
 _The seam beside the sidebar closes_
