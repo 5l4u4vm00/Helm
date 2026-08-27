@@ -318,6 +318,8 @@ Bare keys only — held Ctrl / Alt / Cmd is left to the global layer and the OS.
 | Key | Action |
 | --- | --- |
 | `j · k · ↑ · ↓ · g · G` | Move focus through the tree |
+| `Shift+↑ · Shift+K` | Move up (within the workspace) |
+| `Shift+↓ · Shift+J` | Move down (within the workspace) |
 | `r · F2` | Rename |
 | `c` | New session in this workspace |
 | `w` | New workspace |

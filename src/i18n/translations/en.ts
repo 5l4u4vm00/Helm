@@ -134,7 +134,6 @@ export const en: Record<string, string> = {
   "sidebar.pendingApprovalBadge": "{count} awaiting your input — click to go",
   "sidebar.addSession": "New shell in this workspace",
   "sidebar.removeWorkspace": "Delete workspace and its sessions",
-  "sidebar.dragWorkspace": "Drag to reorder workspace",
   "sidebar.selectFolder": "Set default folder for new sessions",
   "sidebar.clearFolder": "Clear default folder",
   "sidebar.folderMissing":
@@ -312,6 +311,8 @@ export const en: Record<string, string> = {
   "shortcut.section.terminal": "Terminal",
   "shortcut.prefix.focusPane": "Focus the pane in that direction",
   "shortcut.sidebar.navigate": "Move focus through the tree",
+  "shortcut.sidebar.moveUp": "Move up (within the workspace)",
+  "shortcut.sidebar.moveDown": "Move down (within the workspace)",
   "shortcut.sidebar.rename": "Rename",
   "shortcut.sidebar.newSession": "New session in this workspace",
   "shortcut.sidebar.newWorkspace": "New workspace",

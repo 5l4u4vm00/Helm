@@ -1,7 +1,7 @@
 // One session row: status dot, title, close button.
-// Draggable onto another workspace group — via pointer events, not HTML5 DnD,
+// Draggable onto another workspace group -- via pointer events, not HTML5 DnD,
 // because Tauri's native drop handler swallows in-page drags on Windows (the
-// full reasoning is at the top of store/sidebarDrag.ts).
+// full reasoning is at the top of dragContext.tsx).
 // Memoized: projected session refs (sidebarProjection) are stable for
 // untouched sessions and cluster info arrives as primitives, so one session's
 // state tick re-renders only its own row.
@@ -11,13 +11,18 @@ import { useUiStore } from "../../store/ui";
 import { useWorkspaceStore } from "../../store/workspaces";
 import type { SidebarSession } from "../../store/sidebarProjection";
 import type { SplitClusterInfo } from "../../store/workspaceGroups";
-import { activateSession, newSession, newWorkspace } from "../../commands/actions";
+import {
+  activateSession,
+  moveSessionInSidebar,
+  newSession,
+  newWorkspace,
+} from "../../commands/actions";
 import { focusActiveTerminal } from "../../focus/focusUtils";
 import { handleListKey, hasNonShiftModifier } from "../../focus/listNav";
 import { pickFolder } from "../../ipc/dialog";
 import { useT } from "../../i18n";
+import { useSidebarDragContext } from "./dragContext";
 import { resolveSidebarShortcut } from "./sidebarKeymap";
-import type { DragKind } from "../../store/sidebarDrag";
 
 /** Every visible tree node participates in roving focus. */
 export const SIDEBAR_NAV_SELECTOR = ".session-item, .workspace-header";
@@ -45,10 +50,6 @@ interface SessionItemProps {
   clusterGroupId: string | null;
   isActive: boolean;
   listRef: React.RefObject<HTMLDivElement | null>;
-  /** Arm a pointer drag for this row. */
-  startDrag: (kind: DragKind, id: string, e: React.PointerEvent) => void;
-  /** This row is the one being dragged: dimmed in place as the ghost moves. */
-  dragging: boolean;
 }
 
 export const SessionItem = memo(function SessionItem({
@@ -57,10 +58,12 @@ export const SessionItem = memo(function SessionItem({
   clusterGroupId,
   isActive,
   listRef,
-  startDrag,
-  dragging,
 }: SessionItemProps) {
   const t = useT();
+  // Drag transport comes from the provider rather than dataTransfer; see
+  // dragContext.tsx for why HTML5 DnD cannot be used here.
+  const { active, startDrag } = useSidebarDragContext();
+  const dragging = active?.kind === "session" && active.id === s.id;
   const closeSession = useSessionStore((x) => x.closeSession);
   const renameSession = useSessionStore((x) => x.renameSession);
   // Rename state comes from the ui store (not props) so this memo still skips
@@ -143,12 +146,22 @@ export const SessionItem = memo(function SessionItem({
       else if (action === "choose-folder") void chooseFolder();
       else if (action === "request-delete") requestClose();
       else if (action === "focus-terminal") focusActiveTerminal();
+      else if (action === "move-up") moveRow(e.currentTarget, -1);
+      else if (action === "move-down") moveRow(e.currentTarget, 1);
     } else if (
       !hasNonShiftModifier(e) &&
       handleListKey(e.key, listRef.current, SIDEBAR_NAV_SELECTOR)
     ) {
       e.preventDefault();
     }
+  };
+
+  // Focus stays on the row across a reorder (React moves the keyed DOM node
+  // rather than recreating it), so the browser will not auto-scroll the list —
+  // do it explicitly, after the re-render has placed the row.
+  const moveRow = (row: HTMLElement, delta: 1 | -1) => {
+    moveSessionInSidebar(s.id, delta);
+    requestAnimationFrame(() => row.scrollIntoView({ block: "nearest" }));
   };
 
   const cls = dotClass(s);
@@ -158,6 +171,7 @@ export const SessionItem = memo(function SessionItem({
       role="button"
       tabIndex={isActive ? 0 : -1}
       data-region-entry={isActive ? "true" : undefined}
+      data-session-id={s.id}
       data-cluster-pos={clusterPos}
       data-cluster-group={clusterGroupId ?? undefined}
       data-dragging={dragging ? "true" : undefined}
@@ -165,10 +179,10 @@ export const SessionItem = memo(function SessionItem({
         if (!renaming && !confirming) startDrag("session", s.id, e);
       }}
       // Rename starts on the second mousedown, not on dblclick: WebKitGTK used
-      // to hand the gesture to the HTML5 drag machinery and never fire
-      // dblclick. The pointer-drag rewrite removes that specific cause, but the
-      // behavior is kept — it is indistinguishable to the user, and a press
-      // that becomes a drag must not also open the rename box.
+      // to hand the gesture to the HTML5 drag machinery, so dblclick never
+      // arrived. The pointer-drag rewrite removes that cause, but the behavior
+      // is kept -- it is indistinguishable to the user, and a press that turns
+      // into a drag must not also open the rename box.
       onMouseDown={(e) => {
         if (e.detail === 2 && e.button === 0 && !renaming && !confirming) {
           e.preventDefault();
@@ -176,8 +190,6 @@ export const SessionItem = memo(function SessionItem({
         }
       }}
       onClick={() => {
-        // Note: a click that concluded a drag never reaches here — the drag
-        // controller swallows it at the capture phase (see useSidebarDrag).
         // While confirming, a click anywhere outside the ✓/✕ buttons cancels —
         // the mouse equivalent of the cancel-and-swallow key rule.
         if (confirming) setPendingAction(null);

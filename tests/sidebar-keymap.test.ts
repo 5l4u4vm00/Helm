@@ -47,14 +47,47 @@ check("Ctrl+Enter does not activate", res("session", { key: "Enter", ctrlKey: tr
 // Shift must stay allowed — some keys carry it in the character itself.
 check("Shift is allowed through", res("workspace", { key: "r", shiftKey: true } as SidebarKeyLike), "rename");
 
+// Reordering: Shift is the only modifier the region layer allows, so it is the
+// discriminator between "move the cursor" and "move the thing".
+check(
+  "Shift+Up moves a session up",
+  res("session", { key: "ArrowUp", shiftKey: true } as SidebarKeyLike),
+  "move-up",
+);
+check(
+  "Shift+Down moves a workspace down",
+  res("workspace", { key: "ArrowDown", shiftKey: true } as SidebarKeyLike),
+  "move-down",
+);
+check("Shift+K moves up", res("session", { key: "K", shiftKey: true } as SidebarKeyLike), "move-up");
+check(
+  "Shift+J moves down",
+  res("session", { key: "J", shiftKey: true } as SidebarKeyLike),
+  "move-down",
+);
+// The regression that would break list navigation: a bare arrow must fall
+// through to handleListKey, not reorder.
+check("bare Up is left to list navigation", res("session", "ArrowUp"), null);
+check("bare Down is left to list navigation", res("workspace", "ArrowDown"), null);
+// CapsLock+k reports "K" without shiftKey and must not reorder.
+check("CapsLock K does not reorder", res("session", "K"), null);
+check(
+  "Ctrl+Shift+Up does not reorder",
+  res("session", { key: "ArrowUp", shiftKey: true, ctrlKey: true } as SidebarKeyLike),
+  null,
+);
+
 // Table sanity: no key is claimed twice for the same target.
 for (const target of ["session", "workspace"] as SidebarTarget[]) {
   const seen = new Set<string>();
   for (const b of SIDEBAR_TABLE) {
     if (b.targets && !b.targets.includes(target)) continue;
     for (const k of b.keys) {
-      assert.ok(!seen.has(k), `FAIL: key ${JSON.stringify(k)} bound twice for ${target}`);
-      seen.add(k);
+      // Shift-qualified bindings occupy a different slot than their bare form,
+      // so a future bare-arrow binding still trips this.
+      const slot = `${b.shift ? "Shift+" : ""}${k}`;
+      assert.ok(!seen.has(slot), `FAIL: key ${JSON.stringify(slot)} bound twice for ${target}`);
+      seen.add(slot);
     }
   }
 }

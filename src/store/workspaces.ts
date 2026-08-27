@@ -11,7 +11,7 @@ import {
   type Workspace,
   type WorkspaceRecipe,
 } from "./workspaceGroups";
-import { moveWorkspaceOrder } from "./sidebarDrag";
+import { moveWorkspaceRelative } from "./sidebarOrder";
 
 interface WorkspaceState {
   workspaces: Workspace[];
@@ -24,12 +24,11 @@ interface WorkspaceState {
    *  Normalized on the way in, so a reserved or malformed env key never lands
    *  in the store at all — the UI reports it, the store simply never holds it. */
   setWorkspaceRecipe: (id: string, recipe: WorkspaceRecipe | undefined) => void;
+  /** Reposition a workspace relative to another one. Sidebar order IS array
+   *  order, so this is the whole feature. */
+  reorderWorkspace: (dragId: string, targetId: string, edge: "before" | "after") => void;
   /** Remove the workspace itself; refuses the default one. */
   deleteWorkspace: (id: string) => void;
-  /** Reorder: move `id` into the gap at `toIndex`, indexed against the current
-   *  list (see moveWorkspaceOrder). Sidebar order is array order, so this is
-   *  the whole feature — and it write-throughs like every other mutation. */
-  moveWorkspace: (id: string, toIndex: number) => void;
   toggleCollapsed: (id: string) => void;
 }
 
@@ -94,21 +93,15 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
       ),
     })),
 
+  reorderWorkspace: (dragId, targetId, edge) =>
+    set((s) => ({
+      workspaces: persist(moveWorkspaceRelative(s.workspaces, dragId, targetId, edge)),
+    })),
+
   deleteWorkspace: (id) => {
     if (id === DEFAULT_WORKSPACE_ID) return;
     set((s) => ({ workspaces: persist(s.workspaces.filter((w) => w.id !== id)) }));
   },
-
-  moveWorkspace: (id, toIndex) =>
-    set((s) => {
-      const from = s.workspaces.findIndex((w) => w.id === id);
-      const next = moveWorkspaceOrder(s.workspaces, from, toIndex);
-      // Identity means the move was a no-op: hand back the same array so the
-      // store sees no change and nothing is written to localStorage.
-      return next === s.workspaces
-        ? { workspaces: s.workspaces }
-        : { workspaces: persist([...next]) };
-    }),
 
   toggleCollapsed: (id) =>
     set((s) => ({
