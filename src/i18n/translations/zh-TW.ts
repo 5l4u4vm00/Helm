@@ -132,6 +132,7 @@ export const zhTW: Record<string, string> = {
   "sidebar.pendingApprovalBadge": "{count} 個待處理 — 點擊前往",
   "sidebar.addSession": "在此 Workspace 新增 Shell",
   "sidebar.removeWorkspace": "刪除 Workspace（連同其下 session）",
+  "sidebar.dragWorkspace": "拖曳調整 Workspace 順序",
   "sidebar.selectFolder": "設定新 session 的預設資料夾",
   "sidebar.clearFolder": "清除預設資料夾",
   "sidebar.folderMissing": "目前找不到這個資料夾——新 session 會改由家目錄啟動。",
