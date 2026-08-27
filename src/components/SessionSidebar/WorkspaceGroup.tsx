@@ -7,9 +7,10 @@
 // hovered or focused, so the resting line reads as information only.
 // Session rows hang off a left accent rail rather than an indent, which is what
 // makes group membership visible at a glance. The whole group is a drop target so
-// a session can be dragged in even when the group is collapsed.
-import { memo, useEffect, useMemo, useRef, useState } from "react";
-import { useSessionStore } from "../../store/sessions";
+// a session can be dragged in even when the group is collapsed — measured by
+// `data-workspace-id` on the group element (see useSidebarDrag), which is why
+// that attribute is load-bearing and not just a debugging aid.
+import { memo, useEffect, useMemo } from "react";
 import type { SidebarSession } from "../../store/sidebarProjection";
 import { useFolderStatusStore } from "../../store/folderStatus";
 import { useWorkspaceStore } from "../../store/workspaces";
@@ -34,6 +35,7 @@ import { useSettingsStore } from "../../store/settings";
 import { SessionItem, SIDEBAR_NAV_SELECTOR } from "./SessionItem";
 import { useT } from "../../i18n";
 import { resolveSidebarShortcut } from "./sidebarKeymap";
+import type { DragKind } from "../../store/sidebarDrag";
 
 interface WorkspaceGroupProps {
   workspace: Workspace;
@@ -44,6 +46,18 @@ interface WorkspaceGroupProps {
   /** The active session's workspace: gets the lit rail and full-contrast label. */
   focused: boolean;
   regionEntry: boolean;
+  /** Arm a pointer drag from a row or the workspace grip. */
+  startDrag: (kind: DragKind, id: string, e: React.PointerEvent) => void;
+  /** The session currently being dragged, if any (dimmed at its origin). */
+  draggingSessionId: string | null;
+  /** This workspace is the one being dragged. */
+  draggingWorkspaceId: string | null;
+  /** Workspace id a dragged session would land in. */
+  sessionDropTarget: string | null;
+  /** Show the workspace insertion line above this group. */
+  insertBefore: boolean;
+  /** Show it below — only the last group can own the trailing gap. */
+  insertAfterLast: boolean;
 }
 
 // Memoized: rename state is subscribed from the ui store (not passed as
@@ -56,12 +70,17 @@ export const WorkspaceGroup = memo(function WorkspaceGroup({
   deletable,
   focused,
   regionEntry,
+  startDrag,
+  draggingSessionId,
+  draggingWorkspaceId,
+  sessionDropTarget,
+  insertBefore,
+  insertAfterLast,
 }: WorkspaceGroupProps) {
   const t = useT();
   const toggleCollapsed = useWorkspaceStore((s) => s.toggleCollapsed);
   const renameWorkspace = useWorkspaceStore((s) => s.renameWorkspace);
   const setWorkspaceFolder = useWorkspaceStore((s) => s.setWorkspaceFolder);
-  const moveSessionToWorkspace = useSessionStore((s) => s.moveSessionToWorkspace);
   const renaming = useUiStore((s) => s.renamingWorkspaceId === w.id);
   const setRenamingId = useUiStore((s) => s.setRenamingWorkspaceId);
   const pendingAction = useUiStore((s) => s.sidebarPendingAction);
@@ -88,7 +107,6 @@ export const WorkspaceGroup = memo(function WorkspaceGroup({
   // 讓預算落在實際盒寬之內，維持 sidebarCharBudget 說的保守偏誤。
   const sidebarWidth = useSettingsStore((s) => s.sidebarWidth);
   const charBudget = sidebarCharBudget(sidebarWidth, 4.8, 78);
-  const [dragOver, setDragOver] = useState(false);
   // 所有 waiting 一視同仁：agentState === "waiting" 涵蓋 approval / question /
   // plan（question/plan 沒有 pendingApproval，但同樣需要使用者處理）。
   const pendingCount = useMemo(
@@ -101,8 +119,6 @@ export const WorkspaceGroup = memo(function WorkspaceGroup({
   const alwaysOnBadges =
     (w.folder && !folderMissing ? 1 : 0) + (w.recipe ? 1 : 0) + (pendingCount > 0 ? 1 : 0);
   const nameBudget = workspaceNameBudget(sidebarWidth, alwaysOnBadges);
-  // Counter to ignore dragleave noise from child elements.
-  const dragDepth = useRef(0);
 
   const commitRename = (value: string) => {
     const name = value.trim();
@@ -187,36 +203,15 @@ export const WorkspaceGroup = memo(function WorkspaceGroup({
     if (path) setWorkspaceFolder(w.id, path);
   };
 
-  const clearDrag = () => {
-    dragDepth.current = 0;
-    setDragOver(false);
-  };
-
-  const onDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    clearDrag();
-    const id = e.dataTransfer.getData("text/plain");
-    if (id) moveSessionToWorkspace(id, w.id);
-  };
-
   return (
     <div
-      className={`workspace-group ${dragOver ? "drag-over" : ""}`}
+      className={`workspace-group ${sessionDropTarget === w.id ? "drag-over" : ""}`}
       data-focused={focused ? "true" : undefined}
-      onDragEnter={(e) => {
-        e.preventDefault();
-        dragDepth.current += 1;
-        setDragOver(true);
-      }}
-      onDragLeave={() => {
-        dragDepth.current -= 1;
-        if (dragDepth.current <= 0) clearDrag();
-      }}
-      onDragOver={(e) => {
-        e.preventDefault();
-        e.dataTransfer.dropEffect = "move";
-      }}
-      onDrop={onDrop}
+      /* Read by useSidebarDrag to measure drop zones — see the file header. */
+      data-workspace-id={w.id}
+      data-dragging={draggingWorkspaceId === w.id ? "true" : undefined}
+      data-insert-before={insertBefore ? "true" : undefined}
+      data-insert-after={insertAfterLast ? "true" : undefined}
     >
       {/* The header line and its action row share one hover container: the row
           must stay up while the cursor travels onto it, yet hanging the trigger
@@ -239,6 +234,23 @@ export const WorkspaceGroup = memo(function WorkspaceGroup({
           }}
           onKeyDown={onHeaderKeyDown}
         >
+          {/* Explicit grip rather than making the whole header draggable: the
+              header's primary job is collapse-on-click, and a 5px threshold on
+              the entire bar would make that click feel unreliable. Hidden until
+              the group is hovered, like the action buttons. */}
+          <span
+            className="workspace-grip"
+            title={t("sidebar.dragWorkspace")}
+            aria-hidden="true"
+            onPointerDown={(e) => {
+              // Don't let the press reach the header's collapse toggle.
+              e.stopPropagation();
+              if (!renaming && !confirming) startDrag("workspace", w.id, e);
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            ⠿
+          </span>
           <span className="workspace-chevron">{w.collapsed ? "▸" : "▾"}</span>
           {confirming ? (
             <>
@@ -395,6 +407,8 @@ export const WorkspaceGroup = memo(function WorkspaceGroup({
               clusterGroupId={cluster.groupId}
               isActive={s.id === activeId}
               listRef={listRef}
+              startDrag={startDrag}
+              dragging={draggingSessionId === s.id}
             />
           ))}
         </div>

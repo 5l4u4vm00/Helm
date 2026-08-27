@@ -1,5 +1,7 @@
 // One session row: status dot, title, close button.
-// Draggable so it can be dropped onto another workspace group.
+// Draggable onto another workspace group — via pointer events, not HTML5 DnD,
+// because Tauri's native drop handler swallows in-page drags on Windows (the
+// full reasoning is at the top of store/sidebarDrag.ts).
 // Memoized: projected session refs (sidebarProjection) are stable for
 // untouched sessions and cluster info arrives as primitives, so one session's
 // state tick re-renders only its own row.
@@ -15,6 +17,7 @@ import { handleListKey, hasNonShiftModifier } from "../../focus/listNav";
 import { pickFolder } from "../../ipc/dialog";
 import { useT } from "../../i18n";
 import { resolveSidebarShortcut } from "./sidebarKeymap";
+import type { DragKind } from "../../store/sidebarDrag";
 
 /** Every visible tree node participates in roving focus. */
 export const SIDEBAR_NAV_SELECTOR = ".session-item, .workspace-header";
@@ -42,6 +45,10 @@ interface SessionItemProps {
   clusterGroupId: string | null;
   isActive: boolean;
   listRef: React.RefObject<HTMLDivElement | null>;
+  /** Arm a pointer drag for this row. */
+  startDrag: (kind: DragKind, id: string, e: React.PointerEvent) => void;
+  /** This row is the one being dragged: dimmed in place as the ghost moves. */
+  dragging: boolean;
 }
 
 export const SessionItem = memo(function SessionItem({
@@ -50,6 +57,8 @@ export const SessionItem = memo(function SessionItem({
   clusterGroupId,
   isActive,
   listRef,
+  startDrag,
+  dragging,
 }: SessionItemProps) {
   const t = useT();
   const closeSession = useSessionStore((x) => x.closeSession);
@@ -142,11 +151,6 @@ export const SessionItem = memo(function SessionItem({
     }
   };
 
-  const onDragStart = (e: React.DragEvent) => {
-    e.dataTransfer.setData("text/plain", s.id);
-    e.dataTransfer.effectAllowed = "move";
-  };
-
   const cls = dotClass(s);
   return (
     <div
@@ -156,14 +160,15 @@ export const SessionItem = memo(function SessionItem({
       data-region-entry={isActive ? "true" : undefined}
       data-cluster-pos={clusterPos}
       data-cluster-group={clusterGroupId ?? undefined}
-      // A draggable ancestor breaks text selection inside the input in WebKit.
-      draggable={!renaming && !confirming}
-      onDragStart={onDragStart}
-      // Rename starts on the second mousedown, not on dblclick: WebKitGTK hands
-      // the gesture to the drag machinery once `draggable` is set, and the
-      // dblclick event never arrives (same family of WebKit quirks as the
-      // selection note above). mousedown still fires, and detail === 2 is
-      // exactly "second click of a double-click".
+      data-dragging={dragging ? "true" : undefined}
+      onPointerDown={(e) => {
+        if (!renaming && !confirming) startDrag("session", s.id, e);
+      }}
+      // Rename starts on the second mousedown, not on dblclick: WebKitGTK used
+      // to hand the gesture to the HTML5 drag machinery and never fire
+      // dblclick. The pointer-drag rewrite removes that specific cause, but the
+      // behavior is kept — it is indistinguishable to the user, and a press
+      // that becomes a drag must not also open the rename box.
       onMouseDown={(e) => {
         if (e.detail === 2 && e.button === 0 && !renaming && !confirming) {
           e.preventDefault();
@@ -171,6 +176,8 @@ export const SessionItem = memo(function SessionItem({
         }
       }}
       onClick={() => {
+        // Note: a click that concluded a drag never reaches here — the drag
+        // controller swallows it at the capture phase (see useSidebarDrag).
         // While confirming, a click anywhere outside the ✓/✕ buttons cancels —
         // the mouse equivalent of the cancel-and-swallow key rule.
         if (confirming) setPendingAction(null);

@@ -11,6 +11,7 @@ import {
   type Workspace,
   type WorkspaceRecipe,
 } from "./workspaceGroups";
+import { moveWorkspaceOrder } from "./sidebarDrag";
 
 interface WorkspaceState {
   workspaces: Workspace[];
@@ -25,6 +26,10 @@ interface WorkspaceState {
   setWorkspaceRecipe: (id: string, recipe: WorkspaceRecipe | undefined) => void;
   /** Remove the workspace itself; refuses the default one. */
   deleteWorkspace: (id: string) => void;
+  /** Reorder: move `id` into the gap at `toIndex`, indexed against the current
+   *  list (see moveWorkspaceOrder). Sidebar order is array order, so this is
+   *  the whole feature — and it write-throughs like every other mutation. */
+  moveWorkspace: (id: string, toIndex: number) => void;
   toggleCollapsed: (id: string) => void;
 }
 
@@ -93,6 +98,17 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
     if (id === DEFAULT_WORKSPACE_ID) return;
     set((s) => ({ workspaces: persist(s.workspaces.filter((w) => w.id !== id)) }));
   },
+
+  moveWorkspace: (id, toIndex) =>
+    set((s) => {
+      const from = s.workspaces.findIndex((w) => w.id === id);
+      const next = moveWorkspaceOrder(s.workspaces, from, toIndex);
+      // Identity means the move was a no-op: hand back the same array so the
+      // store sees no change and nothing is written to localStorage.
+      return next === s.workspaces
+        ? { workspaces: s.workspaces }
+        : { workspaces: persist([...next]) };
+    }),
 
   toggleCollapsed: (id) =>
     set((s) => ({

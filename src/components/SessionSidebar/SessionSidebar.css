@@ -595,3 +595,66 @@
   background: var(--hover);
   color: var(--fg);
 }
+
+/* --- Pointer drag-and-drop -------------------------------------------------
+   HTML5 DnD is unusable inside Tauri on Windows (the native drop handler eats
+   in-page drag events), so the sidebar drags with pointer events and paints
+   every affordance itself — there is no browser-drawn drag image. */
+
+/* The grip is the only drag handle on a workspace header; the rest of the bar
+   stays a collapse toggle. Revealed on hover like the action buttons. */
+.workspace-grip {
+  flex: 0 0 auto;
+  width: 11px;
+  margin-right: 1px;
+  font-size: 10px;
+  line-height: 1;
+  color: var(--muted);
+  opacity: 0;
+  cursor: grab;
+  transition: opacity 0.1s ease;
+}
+
+.workspace-head:hover .workspace-grip,
+.workspace-head:focus-within .workspace-grip {
+  opacity: 0.55;
+}
+
+.workspace-grip:hover {
+  opacity: 1;
+}
+
+.workspace-grip:active {
+  cursor: grabbing;
+}
+
+/* The dragged item stays in place, dimmed: the insertion line carries the
+   "where will it land" information, so moving the row too would say it twice. */
+.workspace-group[data-dragging="true"],
+.session-item[data-dragging="true"] {
+  opacity: 0.4;
+}
+
+/* Insertion line for a workspace reorder. Drawn as an inset shadow rather than
+   a border so it never shifts the rows it sits between. */
+.workspace-group[data-insert-before="true"] {
+  box-shadow: inset 0 2px 0 -1px var(--active);
+}
+
+.workspace-group[data-insert-after="true"] {
+  box-shadow: inset 0 -2px 0 -1px var(--active);
+}
+
+/* While dragging, hover states across the list would compete with the single
+   drop indicator, so they are switched off wholesale. */
+.session-list[data-dragging] .session-item:hover,
+.session-list[data-dragging] .workspace-header:hover {
+  background: transparent;
+}
+
+/* Pointer drags select text unless the source is inert; the sidebar already
+   sets user-select: none, but the rows also must not become drop targets for
+   the OS-level handler mid-drag. */
+.session-list[data-dragging] {
+  cursor: grabbing;
+}

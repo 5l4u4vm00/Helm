@@ -9,8 +9,13 @@
 // false，這個事件就不再發出，終端機拖放會整個失效（HTML5 drop 會回來，但那條路
 // 拿不到真實檔案路徑）。維持預設即可，不需要在設定檔寫明。
 //
-// sidebar 把 session 拖到別的 workspace 走的是 webview 內部的 HTML5 DnD，
-// 不經過 OS 拖放層，不受這裡影響。
+// ⚠️ 同一個攔截也吃掉 **webview 內部**的 HTML5 DnD：頁面內兩個 DOM 元素之間
+// 拖曳時 dragstart 會觸發，但 dragover/drop 永遠不來。Tauri 文件寫得很直白：
+// 「Disabling it is required to use HTML5 drag and drop on the frontend on
+// Windows.」但關掉它就等於關掉上面這條路（HTML5 的 fallback 在 WebView2 只拿得
+// 到檔名，拿不到 PTY 需要的絕對路徑）——這就是 tauri#5941 的兩難。
+// 所以側欄改用 pointer events 自己實作拖放，繞過原生 handler，兩邊並存。
+// 見 store/sidebarDrag.ts 與 components/SessionSidebar/useSidebarDrag.ts。
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import type { UnlistenFn } from "@tauri-apps/api/event";
 
