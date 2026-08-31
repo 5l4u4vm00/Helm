@@ -22,6 +22,8 @@ PTY bytes. Rust changes still need `npm run tauri dev` by hand.
 
 from __future__ import annotations
 
+import os
+import signal
 import subprocess
 import time
 import urllib.error
@@ -29,26 +31,73 @@ import urllib.request
 from contextlib import contextmanager
 
 PORT = 1420
-URL = f"http://localhost:{PORT}"
 
 # vite's own port; strictPort is set in vite.config.ts so it never drifts.
 SERVER_CMD = "npm run dev"
 
+# Which host actually answers has to be discovered, not assumed. vite may bind
+# IPv6 (`::1`) only -- it does on Windows -- while a Linux CI runner typically
+# answers on 127.0.0.1. Worse, the two halves of this harness resolve `localhost`
+# differently: Python's urllib happily follows it to `::1`, but Chromium tries
+# IPv4 first and fails with ERR_CONNECTION_REFUSED. So the probe records the
+# literal host that answered and `URL` hands *that* to the browser, keeping both
+# halves pointed at the same socket.
+_HOST_CANDIDATES = ("127.0.0.1", "[::1]", "localhost")
 
-def _server_up(url: str = URL) -> bool:
-    """Probe over HTTP, not a raw socket.
+# Set by _server_up() to the first candidate that answered.
+URL = f"http://127.0.0.1:{PORT}"
 
-    vite binds `::1` only (IPv6) on this machine, so a socket probe against
-    127.0.0.1 reports "closed" while the server is serving perfectly well --
-    which silently made the harness start a second vite that then died on
-    "Port 1420 is already in use". An HTTP GET is also the readiness signal we
-    actually care about: the port can be open before vite can answer.
+
+def _server_up() -> bool:
+    """Probe over HTTP, not a raw socket, and pin `URL` to whatever answered.
+
+    HTTP is also the readiness signal we actually care about: the port can be
+    open before vite can answer. A raw socket probe additionally lies whenever
+    the address family differs -- which silently made an earlier version start a
+    second vite that then died on "Port 1420 is already in use".
     """
+    global URL
+    for host in _HOST_CANDIDATES:
+        candidate = f"http://{host}:{PORT}"
+        try:
+            with urllib.request.urlopen(candidate, timeout=1.5) as r:
+                if r.status == 200:
+                    URL = candidate
+                    return True
+        except (urllib.error.URLError, OSError):
+            continue
+    return False
+
+
+def _kill_tree(proc: subprocess.Popen) -> None:
+    """Kill the server *and its children*.
+
+    `shell=True` means `proc` is the shell (`npm`), not vite. Terminating just
+    the shell leaves vite holding the port, which on a CI runner orphans a
+    process and on a dev box makes the next run silently "reuse" a server built
+    from stale code. Kill the whole tree instead.
+    """
+    if proc.poll() is not None:
+        return
+    if os.name == "nt":
+        # taskkill /T walks the child tree; there is no process-group signal on
+        # Windows that Popen(shell=True) would give us.
+        subprocess.run(
+            ["taskkill", "/PID", str(proc.pid), "/T", "/F"],
+            capture_output=True,
+            check=False,
+        )
+    else:
+        # start_new_session put the shell in its own process group, so one
+        # signal reaches vite too.
+        try:
+            os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+        except (ProcessLookupError, PermissionError):
+            proc.terminate()
     try:
-        with urllib.request.urlopen(url, timeout=1.5) as r:
-            return r.status == 200
-    except (urllib.error.URLError, OSError):
-        return False
+        proc.wait(timeout=10)
+    except subprocess.TimeoutExpired:
+        proc.kill()
 
 
 @contextmanager
@@ -59,7 +108,7 @@ def dev_server(timeout: float = 90.0):
     while iterating on these tests.
     """
     if _server_up():
-        print(f"[harness] reusing server already on :{PORT}")
+        print(f"[harness] reusing server already at {URL}")
         yield None
         return
 
@@ -69,26 +118,28 @@ def dev_server(timeout: float = 90.0):
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
+        # Own process group on POSIX (CI), so _kill_tree's killpg reaches vite
+        # and not just the shell. Windows uses taskkill /T instead.
+        start_new_session=(os.name != "nt"),
     )
     deadline = time.time() + timeout
     try:
         while time.time() < deadline:
             if _server_up():
-                print(f"[harness] dev server up on :{PORT}")
+                print(f"[harness] dev server up at {URL}")
                 break
             if proc.poll() is not None:
                 out = proc.stdout.read() if proc.stdout else ""
                 raise RuntimeError(f"dev server exited early:\n{out}")
             time.sleep(0.3)
         else:
-            raise RuntimeError(f"dev server did not answer {URL} within {timeout}s")
+            raise RuntimeError(
+                f"dev server did not answer any of "
+                f"{_HOST_CANDIDATES} on :{PORT} within {timeout}s"
+            )
         yield proc
     finally:
-        proc.terminate()
-        try:
-            proc.wait(timeout=10)
-        except subprocess.TimeoutExpired:
-            proc.kill()
+        _kill_tree(proc)
 
 
 # --- assertions -------------------------------------------------------------
@@ -138,9 +189,13 @@ def fresh_page(browser, *, width: int = 1400, height: int = 900):
     return ctx, page
 
 
-def boot(page, *, url: str = URL) -> None:
-    """Load the app and wait until bootstrap has produced its first session."""
-    page.goto(url, wait_until="domcontentloaded")
+def boot(page, *, url: str | None = None) -> None:
+    """Load the app and wait until bootstrap has produced its first session.
+
+    Defaults to the module-level `URL` *at call time* -- a default argument would
+    capture the pre-probe value and send the browser to the wrong host.
+    """
+    page.goto(url or URL, wait_until="domcontentloaded")
     page.wait_for_selector(".session-item", timeout=30_000)
     # Bootstrap runs initRegistry -> restore -> launch folder -> newSession;
     # give the rAF focus pass a beat, per the verify skill.

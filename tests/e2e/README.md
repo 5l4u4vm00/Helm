@@ -5,8 +5,23 @@ npm run test:e2e          # all suites, one dev server
 python tests/e2e/test_sidebar_drag.py    # one suite
 ```
 
-Requires `pip install playwright && playwright install chromium`. The runner
-starts `npm run dev` itself, or reuses a server already answering on :1420.
+Requires:
+
+```bash
+pip install -r tests/e2e/requirements.txt
+python -m playwright install chromium
+```
+
+The runner starts `npm run dev` itself and tears it down on exit, or reuses a
+server already answering on :1420 — so an interactive `npm run dev` stays usable
+while iterating.
+
+**In CI:** the `frontend` job runs these on `ubuntu-latest` after `npm test`
+(see `.github/workflows/ci.yml`). Linux only, deliberately — these suites assert
+on DOM geometry and store wiring, not platform behaviour, and neither
+platform-specific failure they were written for is reproducible in headless
+Chromium on any runner. Playwright is pinned in `requirements.txt` because a
+bump also changes the bundled Chromium, and these checks measure real layout.
 
 ## Why this layer exists
 
@@ -70,8 +85,13 @@ Gotchas that cost time here, so they are worth knowing:
   the default launcher name, so match on the prefix.
 - The renderer is `CanvasAddon`, so there is **no `.xterm-rows`** DOM row list to
   count — read `.xterm-screen` and the canvas layers instead.
-- vite may bind IPv6 (`::1`) only, so a socket probe on 127.0.0.1 reports the
-  port closed while the server is serving. `harness.py` probes over HTTP.
+- vite may bind IPv6 (`::1`) only — it does on Windows — so a socket probe on
+  127.0.0.1 reports the port closed while the server is serving. Worse, the two
+  halves disagree about `localhost`: Python's urllib follows it to `::1`, but
+  Chromium tries IPv4 first and fails with `ERR_CONNECTION_REFUSED`. `harness.py`
+  therefore probes candidate hosts over HTTP and pins `URL` to the literal host
+  that answered, so probe and browser hit the same socket. Call `boot(page)`
+  without a `url` — a default argument would capture the pre-probe value.
 - `helm.workspaces` persists in localStorage; always use `fresh_page()`.
 - A drag must clear `DRAG_THRESHOLD_PX` (5) on its *first* move, and move in
   several steps — the controller hit-tests groups live on every move.

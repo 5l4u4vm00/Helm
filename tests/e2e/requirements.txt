@@ -1,0 +1,4 @@
+# Pinned so CI and local runs drive the same browser. Bump deliberately:
+# a Playwright bump also changes the bundled Chromium, and these suites assert
+# on real layout geometry.
+playwright==1.61.0

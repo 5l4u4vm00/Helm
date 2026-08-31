@@ -32,6 +32,30 @@ jobs:
       # node:test suites in tests/*.test.ts
       - run: npm test
 
+      # Playwright interaction suites (tests/e2e/). These cover the integration
+      # layer the node tests cannot reach by construction -- correct pure logic
+      # wired to the DOM incorrectly, the class of bug behind both the v0.20.1
+      # sidebar-drag breakage and the waitForWidth squeeze. See
+      # tests/e2e/README.md, which also records what this layer cannot prove.
+      #
+      # ubuntu-latest only, deliberately: these suites assert on DOM geometry
+      # and store wiring, not on platform behaviour. The two platform-specific
+      # failures they were written for (WebView2's IDropTarget, ConPTY's
+      # tolerance of a wrong rows) are not reproducible in headless Chromium on
+      # any runner, so a matrix here would buy nothing but minutes.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: pip install -r tests/e2e/requirements.txt
+
+      # Chromium only -- the suites never launch firefox/webkit. --with-deps
+      # pulls the shared libraries headless Chromium needs on a bare runner.
+      - run: python -m playwright install --with-deps chromium
+
+      # run_all.py starts `npm run dev` itself and tears it down on exit.
+      - run: npm run test:e2e
+
   rust:
     # windows-latest is not optional: the cfg!(windows) branches in integrations.rs
     # and pty.rs are never compiled on Linux, so a Windows-only break used to
