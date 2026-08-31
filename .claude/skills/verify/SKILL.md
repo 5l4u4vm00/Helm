@@ -32,8 +32,12 @@ Useful selectors (all stable class names):
   commits, Escape cancels, blur commits. The two are mutually exclusive —
   only one rename input can exist at a time.
 - Sidebar buttons (by title attr, Chinese): `新增 Workspace`,
-  `在此 Workspace 新增 Session` (opens `.launcher-menu` →
-  `button[role='menuitem']`), `刪除 Workspace（連同其下 session）`
+  `在此 Workspace 新增 <launcher>` — the title tracks the default launcher
+  name (`Shell`), so match the prefix: `button[title^='在此 Workspace 新增']`
+  (opens `.launcher-menu` → `button[role='menuitem']`),
+  `刪除 Workspace（連同其下 session）`
+- The **active session row** is `.session-item.active` (a class). `data-active`
+  is the *pane's* attribute, not the row's.
 - Changed files / diff: `.files-panel`, `.file-row` (clickable, `tabIndex=0`),
   and the overlay `.diff-card` with `.diff-row.kind-add|del|ctx`,
   `.diff-hunk`, `.diff-message`, `.diff-banner`.
@@ -47,6 +51,20 @@ Useful selectors (all stable class names):
   Ctrl+Shift+D) creates the group; broadcast targets follow visible sessions.
 - Split resizers: `.split-resizer` (drag with mouse.down/move/up)
 
+- The renderer is `CanvasAddon` (see `Terminal/renderer.ts`), so a pane has
+  **no `.xterm-rows`** DOM row list to count — the grid is painted into
+  `canvas.xterm-text-layer` etc. For geometry read `.xterm-screen`'s box (and
+  the canvas layers, which match it) against `.terminal-host`.
+
+## Interaction tests (`tests/e2e/`)
+
+`npm run test:e2e` runs the Playwright suites that cover the integration layer
+the node tests cannot reach — pure logic wired to the DOM incorrectly, the class
+of bug behind both the v0.20.1 sidebar-drag breakage and the `waitForWidth`
+squeeze. Read `tests/e2e/README.md` before adding one; it records what the
+browser layer can and cannot prove (notably: Chromium is not WebView2, so the
+native-drag failure is not reproducible here).
+
 Gotchas:
 
 - Session titles are not unique (`Shell` repeats) — locate sessions by
@@ -57,6 +75,9 @@ Gotchas:
   re-render need a beat.
 - Filter console errors: PTY/Tauri invoke rejections are expected noise in
   browser mode.
+- vite may bind **IPv6 (`::1`) only**, so a raw socket probe against
+  127.0.0.1 reports the port closed while the server is serving fine. Probe
+  over HTTP (`tests/e2e/harness.py` does).
 - **`helm.workspaces` now persists in localStorage**, so a run that reuses a
   browser profile is no longer a clean slate. Clear that key (or use a fresh
   `browser.new_context()`) before asserting workspace counts or names.

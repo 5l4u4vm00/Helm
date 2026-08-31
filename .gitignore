@@ -27,3 +27,7 @@ src-tauri/updater.key
 *.njsproj
 *.sln
 *.sw?
+
+# Python bytecode from the tests/e2e Playwright suites
+__pycache__/
+*.py[cod]
