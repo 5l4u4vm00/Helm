@@ -39,6 +39,13 @@
   padding: 2px 8px 8px;
 }
 
+/* During a drag the rAF loop in dragContext owns scrolling (pointer capture
+   stops the list scrolling itself); leaving overflow live lets a stray wheel or
+   momentum scroll fight it mid-gesture. */
+.sidebar[data-dragging="true"] .session-list {
+  overflow-y: hidden;
+}
+
 /* Groups are separated by space, not by rules or boxes — one gap is cheaper to
    read than a border and never competes with the active row's fill. */
 .workspace-group {
@@ -90,6 +97,9 @@
   border-radius: 5px;
   cursor: pointer;
   color: var(--muted);
+  /* Also a drag source, so it needs the same gesture opt-out as
+     .session-item below -- see the note there. */
+  touch-action: none;
 }
 
 .workspace-header:hover {
@@ -339,6 +349,11 @@
   border-radius: 5px;
   cursor: pointer;
   color: var(--muted);
+  /* Both drag sources take pointer capture (see dragContext.tsx). Without
+     touch-action: none WebView2 reads a vertical drag over this scrolling
+     list as a scroll gesture and fires pointercancel instead, killing the
+     drag silently -- the same pairing SidebarResizer/SplitResizers use. */
+  touch-action: none;
 }
 
 /* Split-group cluster: shared tint + a left-edge connector bracket joining rows.

@@ -1,7 +1,7 @@
 // One session row: status dot, title, close button.
-// Draggable onto another workspace group -- via pointer events, not HTML5 DnD,
-// because Tauri's native drop handler swallows in-page drags on Windows (the
-// full reasoning is at the top of dragContext.tsx).
+// Draggable to reorder within its own workspace -- via pointer events, not
+// HTML5 DnD, because Tauri's native drop handler swallows in-page drags on
+// Windows (the full reasoning is at the top of dragContext.tsx).
 // Memoized: projected session refs (sidebarProjection) are stable for
 // untouched sessions and cluster info arrives as primitives, so one session's
 // state tick re-renders only its own row.
@@ -176,7 +176,9 @@ export const SessionItem = memo(function SessionItem({
       data-cluster-group={clusterGroupId ?? undefined}
       data-dragging={dragging ? "true" : undefined}
       onPointerDown={(e) => {
-        if (!renaming && !confirming) startDrag("session", s.id, e);
+        // The source workspace rides along so a group can refuse a session
+        // from elsewhere: dragging only reorders within one workspace.
+        if (!renaming && !confirming) startDrag("session", s.id, s.workspaceId, e);
       }}
       // Rename starts on the second mousedown, not on dblclick: WebKitGTK used
       // to hand the gesture to the HTML5 drag machinery, so dblclick never

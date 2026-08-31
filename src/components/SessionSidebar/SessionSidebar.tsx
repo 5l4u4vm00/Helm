@@ -1,6 +1,7 @@
 // Session 側欄看板：兩層階層 — workspace（可摺疊群組）→ session。
 // 「⊞」新增 workspace（立即進入命名）；新增 session 由各 workspace 群組
-// 自己的「+」launcher 負責（見 WorkspaceGroup）。session 可拖曳到其他 workspace。
+// 自己的「+」launcher 負責（見 WorkspaceGroup）。session 只能在自己的
+// workspace 內拖曳換位置（跨 workspace 搬移請用鍵盤或其他路徑）。
 // Keyboard: roving focus over headers + items (arrows / Enter / Delete / F2),
 // Esc back to the terminal; the launcher menu is fully arrow-navigable.
 import { useMemo, useRef } from "react";
@@ -19,13 +20,27 @@ import { useUiStore } from "../../store/ui";
 import { newWorkspace } from "../../commands/actions";
 import { runCommand } from "../../commands/registry";
 import { WorkspaceGroup } from "./WorkspaceGroup";
-import { SidebarDragProvider } from "./dragContext";
+import { SidebarDragProvider, useSidebarDragContext } from "./dragContext";
 import { SidebarResizer } from "./SidebarResizer";
 import { useSettingsStore } from "../../store/settings";
 import { useT } from "../../i18n";
 import "./SessionSidebar.css";
 
+// The provider has to wrap the aside (every row below reads the drag context),
+// but the drag controller also needs a live handle on the aside for the
+// scrolling list and the `data-dragging` flag. So the provider owns the ref and
+// this inner component -- which is inside the context -- attaches it. A wrapper
+// element would have been simpler and wrong: `.app > .sidebar` is a
+// direct-child selector and the aside is a flex item of `.app`.
 export function SessionSidebar() {
+  return (
+    <SidebarDragProvider>
+      <SessionSidebarBody />
+    </SidebarDragProvider>
+  );
+}
+
+function SessionSidebarBody() {
   const t = useT();
   // 投影 selector：usage tick 等非顯示欄位的變更回傳同一個參照，側欄零重繪。
   const sessions = useSessionStore((s) => projectSidebarSessions(s.sessions));
@@ -39,7 +54,7 @@ export function SessionSidebar() {
   const shortcutsOpen = useUiStore((s) => s.shortcutsOpen);
   const sidebarWidth = useSettingsStore((s) => s.sidebarWidth);
   const listRef = useRef<HTMLDivElement>(null);
-  const asideRef = useRef<HTMLElement>(null);
+  const { rootRef: asideRef } = useSidebarDragContext();
 
   const groups = useMemo(() => {
     const groupIdOf = (id: string) => findTreeBySession(trees, id);
@@ -61,7 +76,7 @@ export function SessionSidebar() {
   };
 
   return (
-    <SidebarDragProvider>
+    <>
       <aside
         ref={asideRef}
         className="sidebar"
@@ -122,6 +137,6 @@ export function SessionSidebar() {
         </div>
       </aside>
       <SidebarResizer sidebarRef={asideRef} />
-    </SidebarDragProvider>
+    </>
   );
 }
