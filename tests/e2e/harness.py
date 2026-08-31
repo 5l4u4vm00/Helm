@@ -182,8 +182,16 @@ def fresh_page(browser, *, width: int = 1400, height: int = 900):
 
     `helm.workspaces` lives in localStorage, so a reused profile is not a clean
     slate -- see the verify skill's note.
+
+    The locale is pinned because the selectors below are written against the
+    zh-TW strings, and `store/language.ts` picks the language from
+    `navigator.language`: a runner defaulting to en-US renders every label in
+    English and the suites time out waiting for text that is never drawn.
     """
-    ctx = browser.new_context(viewport={"width": width, "height": height})
+    ctx = browser.new_context(
+        viewport={"width": width, "height": height},
+        locale="zh-TW",
+    )
     page = ctx.new_page()
     page.on("pageerror", lambda e: print(f"  [pageerror] {e}"))
     return ctx, page
