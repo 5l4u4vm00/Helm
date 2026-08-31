@@ -8,7 +8,8 @@
 // Session rows hang off a left accent rail rather than an indent, which is what
 // makes group membership visible at a glance. The whole group is a drop target so
 // a session can be dragged in even when the group is collapsed, and the header
-// itself is draggable so workspaces can be reordered.
+// itself is draggable so workspaces can be reordered. Sessions may only be
+// dragged within their own workspace; a session from elsewhere is refused.
 //
 // All drag handling lives on the group wrapper — rows deliberately have no drag
 // handlers. `dragleave` is dispatched on the element being *left*, so a row
@@ -266,6 +267,14 @@ export const WorkspaceGroup = memo(function WorkspaceGroup({
         });
         return;
       }
+      // Sessions reorder only inside their own workspace. Refusing here (rather
+      // than at drop) is what makes the rejection legible: no insertion line and
+      // no .drag-over outline means "nothing lands here", and the row springs
+      // back on release.
+      if (active.sourceWorkspaceId !== w.id) {
+        clearDrag();
+        return;
+      }
       const row = target?.closest?.(".session-item") ?? null;
       const rowId = row?.getAttribute("data-session-id");
       const i = rowId ? rowsRef.current.findIndex((r) => r.id === rowId) : -1;
@@ -279,7 +288,7 @@ export const WorkspaceGroup = memo(function WorkspaceGroup({
             );
       setDragIfChanged({ kind: "session", index });
     },
-    [setDragIfChanged],
+    [setDragIfChanged, clearDrag, w.id],
   );
 
   // Pointer released over this group. `dragRef` stands in for the old closure
@@ -294,6 +303,7 @@ export const WorkspaceGroup = memo(function WorkspaceGroup({
         reorderWorkspace(active.id, w.id, edge);
         return;
       }
+      if (active.sourceWorkspaceId !== w.id) return;
       const index = pending?.kind === "session" ? pending.index : null;
       reorderSession(
         active.id,
@@ -347,7 +357,7 @@ export const WorkspaceGroup = memo(function WorkspaceGroup({
             // The header is also the collapse toggle, so a press only becomes a
             // drag past the movement threshold (see dragContext).
             if ((e.target as HTMLElement).closest("button")) return;
-            if (!renaming && !confirming) startDrag("workspace", w.id, e);
+            if (!renaming && !confirming) startDrag("workspace", w.id, null, e);
           }}
           onClick={() => {
             // While confirming, a click outside the ✓/✕ buttons cancels (see

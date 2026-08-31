@@ -91,6 +91,12 @@ interface SessionState {
    * IS array order, so this is the single write path for drag and keyboard
    * reordering alike, and moving between workspaces is just the case where
    * `targetWorkspaceId` differs.
+   *
+   * The cross-workspace case is kept deliberately, but no sidebar gesture
+   * reaches it today: dragging refuses a session from another workspace (see
+   * WorkspaceGroup) and the keyboard clamps at the workspace edge. Keeping it
+   * here means the eviction-from-split-group invariant stays with the write
+   * path rather than being re-derived by whatever calls this next.
    */
   reorderSession: (
     sessionId: string,
