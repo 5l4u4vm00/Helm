@@ -4,6 +4,19 @@ All notable changes to Helm are recorded here. The format follows [Keep a Change
 
 This file was assembled from the published [GitHub Releases](https://github.com/YIHSUAN603/Helm/releases), which remain the canonical record -- each heading links back to its release, where the full notes and the download table for that version live.
 
+## [0.20.2](https://github.com/YIHSUAN603/Helm/releases/tag/v0.20.2) - 2026-08-31
+
+_Restored panes come back the right size_
+
+### Fixed
+
+- **A restored session no longer comes back squashed into a narrow column.** After restarting Helm the shell was wedged into a thin strip down the left side, with the cursor stuck at the top of the screen. Replaying the scrollback waited only for the pane's *width*, but `.terminal-pane` is `flex: 1 1 auto` with `min-height: 0`, so on a cold start the width settles a frame before the height does — leaving a window where the pane measured `clientWidth > 0` and `clientHeight === 0`. A fit performed at that instant computes the minimum row count (and a too-small column count with it), and the replay's raw `write` then burns those line breaks permanently into the buffer, where no later fit can undo them. Windows saw it on nearly every restart: WebView2's first layout pass is slower than WKWebView's, and ConPTY — unlike a Unix PTY, where the shell redraws itself after `SIGWINCH` — keeps the wrong row count indefinitely. The wait now requires both dimensions, matching what the other two fit call sites already did. The timeout is unchanged: a hidden pane is still released after `REPLAY_WIDTH_WAIT_MS` rather than blocking its PTY forever.
+
+### Changed
+
+- **The three places that decide "does this pane have a usable size yet?" now share one definition.** `Terminal.tsx` had the comparison written out separately at each fit call site — the first fit after `open()`, the replay wait, and the `ResizeObserver` — and the replay copy was the one missing the height check, which is the bug above. All three now call the pure `canFit` (`fitGuard.ts`), which additionally refuses `NaN`, `Infinity`, and negative values; the guard's whole point is to decline to fit when the size is not known. Behaviour is otherwise identical. Pulling it out of the `useEffect` also made it testable — it takes two numbers and touches no DOM — and `tests/fit-guard.test.ts` pins the rule that a pane with width but zero height is not fittable.
+- **A Playwright interaction layer now covers the integration gap the pure-function tests cannot reach**, run in CI on every push. Two suites — sidebar drag (12 checks) and pane sizing (16 checks) — drive the real components in a real browser, targeting the class of bug where the logic is correct and fully unit-tested but wired to the DOM incorrectly. Both of the last two releases shipped exactly that failure: 0.20.1's sidebar drag, where `sidebarOrder.ts` was correct yet nothing moved on Windows, and the replay-sizing bug above. Neither was visible to the 761 node checks. `tests/e2e/README.md` records what this layer honestly cannot prove — Chromium is not WebView2, so removing `setPointerCapture` does not fail the suite — which is why the sizing guard is pinned by the `canFit` unit test instead.
+
 ## [0.20.1](https://github.com/YIHSUAN603/Helm/releases/tag/v0.20.1) - 2026-08-31
 
 _Sidebar dragging works on Windows_
