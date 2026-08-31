@@ -4,6 +4,20 @@ All notable changes to Helm are recorded here. The format follows [Keep a Change
 
 This file was assembled from the published [GitHub Releases](https://github.com/YIHSUAN603/Helm/releases), which remain the canonical record -- each heading links back to its release, where the full notes and the download table for that version live.
 
+## [0.20.1](https://github.com/YIHSUAN603/Helm/releases/tag/v0.20.1) - 2026-08-31
+
+_Sidebar dragging works on Windows_
+
+### Fixed
+
+- **Sessions can be dragged in the sidebar on Windows again.** Dragging a session did nothing at all: no insertion line, only a "not allowed" cursor, and the row never moved. The cause was below the sidebar's own code. Tauri's `dragDropEnabled` defaults to true, which registers a native `IDropTarget` on the WebView2 window and swallows every drag reaching the webview — including a drag between two DOM elements on the same page, where `dragstart` fires but `dragover` and `drop` never arrive. Turning that flag off is not available either: the same handler feeds the terminal's file-drop path, whose HTML5 fallback yields a bare file name rather than the absolute path the PTY needs. The sidebar therefore implements dragging with **pointer events**, never touching the native handler, so both features coexist. Two details decide whether it works at all — `setPointerCapture` on the source row once the drag threshold is crossed, and `touch-action: none` on the rows; without them WebView2 starts its own OLE drag on the first pointer move and the event stream stops dead. Both resizers in the app already did this, which was the only difference between the drags that worked and the one that did not.
+- **Long session lists scroll while you drag.** Once a row takes pointer capture the list stops scrolling on its own, which made any target outside the visible area unreachable. A pure velocity curve (`autoScroll.ts`, unit-tested) drives a rAF loop near the edges.
+- **A drag that loses pointer capture now commits at the current position instead of being discarded.** Losing capture means the captured row was repainted while the pointer was still down — dropping the move silently lost it.
+
+### Changed
+
+- **Dragging a session now only reorders it within its own workspace.** A foreign session is refused during the hover phase rather than at drop: no insertion line and no outline, so "this cannot go here" reads as the absence of a target rather than a move that quietly does nothing. The store's cross-workspace `reorderSession` is untouched — including the invariant that evicts the session from its split group — it simply has no sidebar gesture reaching it, and the keyboard path already clamped at the workspace boundary.
+
 ## [0.20.0](https://github.com/YIHSUAN603/Helm/releases/tag/v0.20.0) - 2026-08-25
 
 _The sidebar takes the order you give it_
