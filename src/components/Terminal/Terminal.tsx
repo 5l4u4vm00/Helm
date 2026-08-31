@@ -24,6 +24,7 @@ import { decodeOsc52 } from "./osc52";
 import { decodeOsc9 } from "./osc9";
 import { attachRenderer, repaintAfterFontChange } from "./renderer";
 import { buildTermOptions } from "./termOptions";
+import { canFit } from "./fitGuard";
 import { scanRows } from "./scanRows";
 import {
   registerScrollbackSource,
@@ -231,7 +232,7 @@ function TerminalImpl({
     // 9×5 之類的最小值；接著重播的裸 write 就以那個寬度把斷行永久烙進 buffer。
     // 0 尺寸時保留 xterm 預設的 80×24，等 ResizeObserver（同樣有 0 尺寸防護）
     // 在 pane 顯示出來時再 fit。
-    if (container.clientWidth > 0 && container.clientHeight > 0) {
+    if (canFit({ width: container.clientWidth, height: container.clientHeight })) {
       fitAddon.fit();
     }
     termRef.current = term;
@@ -355,14 +356,14 @@ function TerminalImpl({
       const deadline = Date.now() + REPLAY_WIDTH_WAIT_MS;
       while (
         !disposed &&
-        (container.clientWidth === 0 || container.clientHeight === 0) &&
+        !canFit({ width: container.clientWidth, height: container.clientHeight }) &&
         Date.now() < deadline
       ) {
         await new Promise<void>((resolve) => setTimeout(resolve, 32));
       }
       if (disposed) return;
       // 有尺寸才 fit：0 尺寸下 fit() 正是把格子夾成最小值的那一步。
-      if (container.clientWidth > 0 && container.clientHeight > 0) {
+      if (canFit({ width: container.clientWidth, height: container.clientHeight })) {
         try {
           fitAddon.fit();
         } catch {
@@ -498,7 +499,7 @@ function TerminalImpl({
     // 所以這一發只在真的需要補正時才動到 xterm/PTY。
     let fitSettleTimer: ReturnType<typeof setTimeout> | undefined;
     const resizeObserver = new ResizeObserver(() => {
-      if (container.clientWidth === 0 || container.clientHeight === 0) return;
+      if (!canFit({ width: container.clientWidth, height: container.clientHeight })) return;
       if (!fitRaf) {
         fitRaf = requestAnimationFrame(() => {
           fitRaf = 0;
