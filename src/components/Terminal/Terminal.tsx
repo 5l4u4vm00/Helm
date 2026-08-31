@@ -336,18 +336,33 @@ function TerminalImpl({
      * active 之外的 pane 都是這種，無限等下去等於它們永遠不 spawn PTY。逾時的
      * 代價只是那一次重播用當下的寬度，與修正前相同，不會更糟。
      *
+     * **寬與高都要等，不能只等寬。** .terminal-pane 是 flex: 1 1 auto 且
+     * min-height: 0（那行是必要的，讓終端機能在剩餘空間內縮放），所以冷啟動時
+     * pane 的寬度會先定下來、高度晚一拍才定 —— 中間存在一段
+     * clientWidth > 0 && clientHeight === 0 的視窗期。在那一刻 fit() 會以 0 高度
+     * 算出最小列數（並連帶把 cols 也算小），接著重播的裸 write 就把斷行永久烙進
+     * buffer，之後再 fit 也救不回（症狀：shell 被擠在左側細長一條、輸入的游標
+     * 黏在最上方）。WebView2 的首幀佈局比 WKWebView 慢，這段視窗期在 Windows 上
+     * 明顯更寬，因此那裡踩中的機率最高；ConPTY 又不像 Unix PTY 會在 SIGWINCH
+     * 後由 shell 自行重畫，錯的 rows 會一直留著。open() 後的首次 fit 與
+     * ResizeObserver 兩處本來就同時檢查寬高，這裡補上是為了與它們一致。
+     *
      * 刻意**不**等字型載入的 promise：那條鏈接著 repaintAfterFontChange，它在
      * renderer 出事時會丟例外，把 spawn 一起拖住（症狀：整個 pane 不 spawn）。
-     * 寬度只看 container，跟字型無關。
+     * 尺寸只看 container，跟字型無關。
      */
     const waitForWidth = async (): Promise<void> => {
       const deadline = Date.now() + REPLAY_WIDTH_WAIT_MS;
-      while (!disposed && container.clientWidth === 0 && Date.now() < deadline) {
+      while (
+        !disposed &&
+        (container.clientWidth === 0 || container.clientHeight === 0) &&
+        Date.now() < deadline
+      ) {
         await new Promise<void>((resolve) => setTimeout(resolve, 32));
       }
       if (disposed) return;
       // 有尺寸才 fit：0 尺寸下 fit() 正是把格子夾成最小值的那一步。
-      if (container.clientWidth > 0) {
+      if (container.clientWidth > 0 && container.clientHeight > 0) {
         try {
           fitAddon.fit();
         } catch {
